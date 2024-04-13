@@ -4,7 +4,7 @@
 #include <cblas.h>
 
 
-#define N 100
+#define N 101
 
 
 // function to randomly initialize matrices

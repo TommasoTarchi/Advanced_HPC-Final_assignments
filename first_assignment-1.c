@@ -3,7 +3,7 @@
 #include <mpi.h>
 
 
-#define N 100
+#define N 102
 
 
 // function to randomly initialize matrices
