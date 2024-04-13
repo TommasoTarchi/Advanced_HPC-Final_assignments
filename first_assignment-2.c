@@ -1,9 +1,10 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
-#include "cblas.h"
+#include <cblas.h>
 
 
-#define N 1000
+#define N 100
 
 
 // function to randomly initialize matrices
@@ -35,41 +36,37 @@ int main(int argc, char** argv) {
 
     // init MPI
     MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 
-    // compute local matrixes size
-    int N_loc = N / n_procs;
+    // compute local matrices size
+    int N_loc_short = N / n_procs;
+    int N_loc_long = N_loc_short + 1;
     int N_rest = N % n_procs;
+    int N_loc;
     if (my_rank < N_rest)
-        N_loc++;
-
-    // define array to store sizes of blocks to be received
+        N_loc = N_loc_long;
+    else
+	N_loc = N_loc_short;
+    
+    // define array to store sizes pf blocks to be received
     int* counts_recv = (int*) malloc(n_procs * sizeof(int));
-    if (my_rank < N_rest && N_rest != 0) {
-        for (int count=0; count<N_rest; count++)
-            counts_recv[count] = N_loc * N;
-        for (int count=N_rest; count<n_procs; count++)
-            counts_recv[count] = (N_loc-1) * N;
-    } else {
-        for (int count=0; count<N_rest; count++)
-            counts_recv[count] = (N_loc+1) * N;
-        for (int count=N_rest; count<n_procs; count++)
-            counts_recv[count] = N_loc * N;
+    for (int count=0; count<N_rest; count++)
+	counts_recv[count] = N_loc_long*N_loc_long;
+    for (int count=N_rest; count<n_procs; count++) {
+	if (N_rest)
+	    counts_recv[count] = N_loc_short*N_loc_long;
+	else
+	    counts_recv[count] = N_loc_short*N_loc_short;
     }
 
-    // define displacement array (indicates where received block must be placed)
+    // define array with positions of blocks to be received
     int* displacements = (int*) malloc(n_procs * sizeof(int));
-    if (my_rank < N_rest && N_rest != 0) {
-        for (int count=0; count<N_rest+1; count++)
-            displacements[count] = count * N_loc;
-        for (int count=N_rest+1; count<n_procs; count++)
-            displacements[count] = N_rest*N_loc + (count-N_rest-1)*(N_loc-1);
-    } else {
-        for (int count=0; count<N_rest; count++)
-            displacements[count] = count * (N_loc+1);
-        for (int count=N_rest; count<n_procs; count++)
-            displacements[count] = N_rest*(N_loc+1) + (count-N_rest-1)*N_loc;
+    displacements[0] = 0;
+    int while_count = 1;
+    while (while_count < n_procs) {
+	displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
+	while_count++;
     }
 
     // allocate local matrices
@@ -82,11 +79,9 @@ int main(int argc, char** argv) {
     random_mat(B, N_loc*N);
 
     // define quantities for blocks computation
-    int offset = 0;  // first element of C to be updated
-    int N_rows = N_loc;  // number of rows in C block
-    int N_cols = N / n_procs;  // number of columns in C block
-    if (N_rest != 0)
-        N_cols++;
+    int offset = 0;
+    int N_rows = N_loc;
+    int N_cols = N_loc_long;
 
     // allocate auxiliary matrices
     double* B_block = (double*) malloc(N_rows * N_cols * sizeof(double));  // matrix to store process's block
@@ -94,23 +89,41 @@ int main(int argc, char** argv) {
     double* C_block = (double*) malloc(N_rows * N_cols * sizeof(double));  // matrix to store computed data
 
     for (int count=0; count<n_procs; count++) {
-
-        // update number of columns and reallocate auxiliary matrices
-        if (count == N_rest && N_rest != 0) {
-            N_cols--;
+	
+	if (count == N_rest) {
+            // update number of columns and reallocate auxiliary matrices
+	    N_cols = N_loc_short;
             B_block = (double*) realloc(B_block, N_rows * N_cols * sizeof(double));
             B_col = (double*) realloc(B_col, N * N_cols * sizeof(double));
-            C_block = (double*) realloc(C_block, N_rows * N_cols * sizeof(double));
-        }
+	    C_block = (double*) realloc(C_block, N_rows * N_cols * sizeof(double));
+
+	    // update count_recv and displacements arrays
+	    for (int count=0; count<N_rest; count++)
+		counts_recv[count] = N_loc_long*N_loc_short;
+	    for (int count=N_rest; count<n_procs; count++) {
+		if (N_rest)
+		    counts_recv[count] = N_loc_short*N_loc_short;
+		else
+		    counts_recv[count] = N_loc_short*N_loc_short;  // not changed in case of zero rest
+	    }
+	    while_count = 1;
+	    while (while_count < n_procs) {
+		displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
+		while_count++;
+	    }
+	}
 
         // create block to send to other processes
         create_block(B, B_block, N_rows, N_cols, offset, N);
 
         // send and receive blocks
-        MPI_Allgatherv(B_block, N_loc*N_loc, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Allgatherv(B_block, N_rows*N_cols, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
 
-        // matmul
-        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N_rows, B_col, N, 0.0, C_block, N_rows);
+    printf("I'm %d of %d\n", my_rank, n_procs);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+	// matmul
+        cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N_rows, B_col, N, 0.0, C_block, N_rows);
         
         // copy result of computation to C
         for (int row=0; row<N_rows; row++)
