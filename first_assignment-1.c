@@ -77,6 +77,29 @@ int main(int argc, char** argv) {
     random_mat(A, N_loc*N);
     random_mat(B, N_loc*N);
 
+    //////////////////////////////////////////////////////////////
+    if (my_rank == 0) {
+        FILE* file = fopen("A.bin", "wb");
+        fwrite(A, sizeof(double), N*N, file);
+        fclose(file);
+        file = fopen("B.bin", "wb");
+        fwrite(B, sizeof(double), N*N, file);
+        fclose(file);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    for (int count=1; count<n_procs; count++) {
+        if (my_rank == count) {
+            FILE* file = fopen("A.bin", "ab");
+            fwrite(A, sizeof(double), N*N, file);
+            fclose(file);
+            file = fopen("B.bin", "ab");
+            fwrite(B, sizeof(double), N*N, file);
+            fclose(file);
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+    //////////////////////////////////////////////////////////////
+
     // define quantities for blocks computation
     int offset = 0;
     int N_rows = N_loc;
@@ -129,6 +152,23 @@ int main(int argc, char** argv) {
             }
         }
     }
+
+    //////////////////////////////////////////////////////////////
+    if (my_rank == 0) {
+        FILE* file = fopen("C.bin", "wb");
+        fwrite(C, sizeof(double), N*N, file);
+        fclose(file);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    for (int count=1; count<n_procs; count++) {
+        if (my_rank == count) {
+            FILE* file = fopen("C.bin", "ab");
+            fwrite(C, sizeof(double), N*N, file);
+            fclose(file);
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+    //////////////////////////////////////////////////////////////
 
     free(counts_recv);
     free(displacements);
