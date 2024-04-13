@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <mpi.h>
 
 
@@ -114,9 +115,6 @@ int main(int argc, char** argv) {
                 C[offset + row*N + col] = acc;
             }
         }
-
-        free(B_block);
-        free(B_col);
     }
 
     free(counts_recv);
@@ -124,6 +122,8 @@ int main(int argc, char** argv) {
     free(A);
     free(B);
     free(C);
+    free(B_block);
+    free(B_col);
 
     MPI_Finalize();
 

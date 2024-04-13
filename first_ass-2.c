@@ -1,4 +1,6 @@
+#include <stdlib.h>
 #include <mpi.h>
+#include "cblas.h"
 
 
 #define N 1000
@@ -89,6 +91,7 @@ int main(int argc, char** argv) {
     // allocate auxiliary matrices
     double* B_block = (double*) malloc(N_rows * N_cols * sizeof(double));  // matrix to store process's block
     double* B_col = (double*) malloc(N * N_cols * sizeof(double));  // matrix to store received blocks
+    double* C_block = (double*) malloc(N_rows * N_cols * sizeof(double));  // matrix to store computed data
 
     for (int count=0; count<n_procs; count++) {
 
@@ -97,6 +100,7 @@ int main(int argc, char** argv) {
             N_cols--;
             B_block = (double*) realloc(B_block, N_rows * N_cols * sizeof(double));
             B_col = (double*) realloc(B_col, N * N_cols * sizeof(double));
+            C_block = (double*) realloc(C_block, N_rows * N_cols * sizeof(double));
         }
 
         // create block to send to other processes
@@ -105,10 +109,13 @@ int main(int argc, char** argv) {
         // send and receive blocks
         MPI_Allgatherv(B_block, N_loc*N_loc, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
 
-        // matmul using cblas_dgemm()
-
-        free(B_block);
-        free(B_col);
+        // matmul
+        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N_rows, B_col, N, 0.0, C_block, N_rows);
+        
+        // copy result of computation to C
+        for (int row=0; row<N_rows; row++)
+            for (int col=0; col<N_cols; col++)
+                C[offset + row*N + col] = C_block[row*N_cols + col];
     }
 
     free(counts_recv);
@@ -116,6 +123,9 @@ int main(int argc, char** argv) {
     free(A);
     free(B);
     free(C);
+    free(B_block);
+    free(B_col);
+    free(C_block);
 
     MPI_Finalize();
 
