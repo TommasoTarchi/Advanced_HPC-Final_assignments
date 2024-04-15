@@ -1,17 +1,24 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <mpi.h>
 #include <cblas.h>
 
 
-#define N 101
+#define N 5
 
 
 // function to randomly initialize matrices
-void random_mat(double* mat, int mat_size) {
+void random_mat(double* mat, int mat_size, unsigned int seed) {
+
+    // set seed
+    srand(seed);
+
+    // set factor to obtain an order of magnitude ~100 (to avoid overflow)
+    int factor = 10 ^ (100 - (int) log10((double) mat_size));
 
     for (int i=0; i<mat_size; i++)
-        mat[i] = (double) rand() / 100.;
+        mat[i] = (double) rand() / (double) RAND_MAX * (double) factor;
 }
 
 // function to create blocks to send to other processes
@@ -74,27 +81,30 @@ int main(int argc, char** argv) {
     double* B = (double*) malloc(N_loc * N * sizeof(double));
     double* C = (double*) malloc(N_loc * N * sizeof(double));
 
-    // initialize A and B
-    random_mat(A, N_loc*N);
-    random_mat(B, N_loc*N);
+    // initialize A and B with personal seeds
+    double current_time = MPI_Wtime();
+    unsigned int my_seed = (unsigned int) (current_time + my_rank + 1);  // '+1' needed because seeds 0 and 1 give same results
+    random_mat(A, N_loc*N, my_seed);
+    my_seed += n_procs;
+    random_mat(B, N_loc*N, my_seed);
 
     //////////////////////////////////////////////////////////////
     if (my_rank == 0) {
         FILE* file = fopen("A.bin", "wb");
-        fwrite(A, sizeof(double), N*N, file);
+        fwrite(A, sizeof(double), N_loc*N, file);
         fclose(file);
         file = fopen("B.bin", "wb");
-        fwrite(B, sizeof(double), N*N, file);
+        fwrite(B, sizeof(double), N_loc*N, file);
         fclose(file);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     for (int count=1; count<n_procs; count++) {
         if (my_rank == count) {
             FILE* file = fopen("A.bin", "ab");
-            fwrite(A, sizeof(double), N*N, file);
+            fwrite(A, sizeof(double), N_loc*N, file);
             fclose(file);
             file = fopen("B.bin", "ab");
-            fwrite(B, sizeof(double), N*N, file);
+            fwrite(B, sizeof(double), N_loc*N, file);
             fclose(file);
         }
         MPI_Barrier(MPI_COMM_WORLD);
@@ -102,7 +112,7 @@ int main(int argc, char** argv) {
     //////////////////////////////////////////////////////////////
 
     // define quantities for blocks computation
-    int offset = 0;
+    int offset = 0;  // offset of C blocks
     int N_rows = N_loc;
     int N_cols = N_loc_long;
 
@@ -121,13 +131,13 @@ int main(int argc, char** argv) {
 	    C_block = (double*) realloc(C_block, N_rows * N_cols * sizeof(double));
 
 	    // update count_recv and displacements arrays
-	    for (int count=0; count<N_rest; count++)
-		counts_recv[count] = N_loc_long*N_loc_short;
-	    for (int count=N_rest; count<n_procs; count++) {
+	    for (int count2=0; count2<N_rest; count2++)
+		counts_recv[count2] = N_loc_long*N_loc_short;
+	    for (int count2=N_rest; count2<n_procs; count2++) {
 		if (N_rest)
-		    counts_recv[count] = N_loc_short*N_loc_short;
+		    counts_recv[count2] = N_loc_short*N_loc_short;
 		else
-		    counts_recv[count] = N_loc_short*N_loc_short;  // not changed in case of zero rest
+		    counts_recv[count2] = N_loc_short*N_loc_short;  // not changed in case of zero rest
 	    }
 	    while_count = 1;
 	    while (while_count < n_procs) {
@@ -142,8 +152,10 @@ int main(int argc, char** argv) {
         // send and receive blocks
         MPI_Allgatherv(B_block, N_rows*N_cols, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
 
-    printf("I'm %d of %d\n", my_rank, n_procs);
-    MPI_Barrier(MPI_COMM_WORLD);
+	///////////////////////////////////////////////////////////////////////////
+        //printf("I'm %d of %d\n", my_rank, n_procs);
+        //MPI_Barrier(MPI_COMM_WORLD);
+	//////////////////////////////////////////////////////////////////////////
 
 	// matmul
         cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N_rows, B_col, N, 0.0, C_block, N_rows);
@@ -152,19 +164,22 @@ int main(int argc, char** argv) {
         for (int row=0; row<N_rows; row++)
             for (int col=0; col<N_cols; col++)
                 C[offset + row*N + col] = C_block[row*N_cols + col];
+
+	// update offset of C blocks
+	offset += N_cols;
     }
 
     //////////////////////////////////////////////////////////////
     if (my_rank == 0) {
         FILE* file = fopen("C.bin", "wb");
-        fwrite(C, sizeof(double), N*N, file);
+        fwrite(C, sizeof(double), N_loc*N, file);
         fclose(file);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     for (int count=1; count<n_procs; count++) {
         if (my_rank == count) {
             FILE* file = fopen("C.bin", "ab");
-            fwrite(C, sizeof(double), N*N, file);
+            fwrite(C, sizeof(double), N_loc*N, file);
             fclose(file);
         }
         MPI_Barrier(MPI_COMM_WORLD);

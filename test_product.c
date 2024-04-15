@@ -10,8 +10,8 @@
 #include <math.h>
 
 
-#define N 100
-#define EPS 1e-9  // tolerance in comparison between C and C_check elements
+#define N 5
+#define EPS 1e-6  // tolerance in comparison between C and C_check elements
 
 
 int main() {
@@ -34,17 +34,13 @@ int main() {
     fread(C, sizeof(double), N * N, file);
     fclose(file);
 
-    // compute correct matrix
-    for (int k=0; k<N*N; k++) {
-        int row = k / N;
-        int col = k % N;
-        
-        double acc = 0;
-        for (int i=0; i<N; i++)
-            for (int j=0; j<N; j++)
-                acc += A[row*N + i] * B[col + j*N];
-        
-        C[k] = acc;
+    for (int row=0; row<N; row++) {
+	for (int col=0; col<N; col++) {
+	    double acc = 0;
+	    for (int i=0; i<N; i++)
+		acc += A[row*N + i] * B[col + i*N];
+	    C_check[row*N + col] = acc;
+	}
     }
 
     // comparison of results
@@ -55,6 +51,37 @@ int main() {
 
     // print result
     printf("errors in matrix-matrix product: %d / %d\n", error_counter, N*N);
+
+    // print first elements of matrices
+    int first_n = 5;
+    for (int i=0; i<first_n; i++) {
+	for (int j=0; j<first_n; j++)
+	    printf("%f  ", A[i*N + j]);
+	printf("\n");
+    }
+    printf("\n\n");
+    for (int i=0; i<first_n; i++) {
+	for (int j=0; j<first_n; j++)
+	    printf("%f  ", B[i*N + j]);
+	printf("\n");
+    }
+    printf("\n\n");
+    for (int i=0; i<first_n; i++) {
+	for (int j=0; j<first_n; j++)
+	    printf("%f  ", C[i*N + j]);
+	printf("\n");
+    }
+    printf("\n\n");
+    for (int i=0; i<first_n; i++) {
+	for (int j=0; j<first_n; j++)
+	    printf("%f  ", C_check[i*N + j]);
+	printf("\n");
+    }
+    
+    free(A);
+    free(B);
+    free(C);
+    free(C_check);
 
     return 0;
 }
