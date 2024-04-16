@@ -71,10 +71,10 @@ int main(int argc, char** argv) {
     cublasHandle_t cublas_handle;
     cublasCreate(&cublas_handle);
 
-    // set devices and defines GPU threads 
-    //
-    //
-    //
+    // set devices 
+    int n_devices;
+    cudaGetDeviceCount(&n_devices);
+    cudaSetDevice(my_rank % n_devices);
 
     // compute local matrices size
     int N_loc_short = N / n_procs;
