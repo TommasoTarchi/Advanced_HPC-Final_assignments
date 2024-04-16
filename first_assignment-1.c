@@ -4,7 +4,7 @@
 #include <mpi.h>
 
 
-#define N 5 
+#define N 10 
 
 
 // function to randomly initialize matrices
@@ -13,11 +13,13 @@ void random_mat(double* mat, int mat_size, unsigned int seed) {
     // set seed
     srand(seed);
 
-    // set factor to obtain an order of magnitude ~100 (to avoid overflow)
-    int factor = 10 ^ (100 - (int) log10((double) mat_size));
+    // set factor to obtain elements with at most an order of 
+    // magnitude ~10^6 (to avoid overflow)
+    double exp = (6. - log10((double) mat_size)) / 2.;
+    double factor = pow(10., exp);
 
     for (int i=0; i<mat_size; i++)
-        mat[i] = (double) rand() / (double) RAND_MAX * (double) factor;
+        mat[i] = (double) rand() / (double) RAND_MAX * factor;
 }
 
 // function to create blocks to send to other processes
@@ -31,7 +33,7 @@ void create_block(double* mat, double* block, int block_y, int block_x, int offs
         int row_offset = offset + row*jump;
         
         for (int i=0; i<block_x; i++)
-            block[i] = mat[row_offset+i];
+            block[row*block_x + i] = mat[row_offset + i];
     }
 }
 
@@ -134,12 +136,8 @@ int main(int argc, char** argv) {
 	    // update count_recv and displacements arrays
 	    for (int count2=0; count2<N_rest; count2++)
 		counts_recv[count2] = N_loc_long*N_loc_short;
-	    for (int count2=N_rest; count2<n_procs; count2++) {
-		if (N_rest)
-		    counts_recv[count2] = N_loc_short*N_loc_short;
-		else
-		    counts_recv[count2] = N_loc_short*N_loc_short;  // not changed in case of zero rest
-	    }
+	    for (int count2=N_rest; count2<n_procs; count2++)
+		counts_recv[count2] = N_loc_short*N_loc_short;  // not changed in case of zero rest
 	    while_count = 1;
 	    while (while_count < n_procs) {
 		displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
@@ -148,16 +146,16 @@ int main(int argc, char** argv) {
 	}
 
         ///////////////////////////////////////////////////////////////////////////
-        if (my_rank == 0)
-	    printf("-- ITERATION %d --\n", count);
-	MPI_Barrier(MPI_COMM_WORLD);
+        //if (my_rank == 0)
+	//    printf("-- ITERATION %d --\n", count);
+	//MPI_Barrier(MPI_COMM_WORLD);
 
         //printf("I'm %d and I have %d rows and %d columns\n", my_rank, N_rows, N_cols);
         //MPI_Barrier(MPI_COMM_WORLD);
 	
-	printf("I'm %d and my disp is: %d, %d, %d, %d\n", my_rank, displacements[0], displacements[1], displacements[2], displacements[3]);
-	printf("I'm %d and my sizes are: %d, %d, %d, %d\n", my_rank, counts_recv[0], counts_recv[1], counts_recv[2], counts_recv[3]);
-	MPI_Barrier(MPI_COMM_WORLD);
+	//printf("I'm %d and my disp is: %d, %d, %d, %d\n", my_rank, displacements[0], displacements[1], displacements[2], displacements[3]);
+	//printf("I'm %d and my sizes are: %d, %d, %d, %d\n", my_rank, counts_recv[0], counts_recv[1], counts_recv[2], counts_recv[3]);
+	//MPI_Barrier(MPI_COMM_WORLD);
         ///////////////////////////////////////////////////////////////////////////
 
         // create block to send to other processes
