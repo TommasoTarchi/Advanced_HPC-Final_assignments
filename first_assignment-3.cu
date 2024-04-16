@@ -42,15 +42,17 @@ void create_block(double* mat, double* block, int block_y, int block_x, int offs
     }
 }
 
-// kernel for accumulation of C
+// kernel for accumulation of blocks in C
 __global__ void accumulate(double* mat, double* mat_block, int dim_y, int dim_x, int offset, int jump) {
 
     // get ID of GPU thread
     int id_y = blockIdx.y*blockDim.y + threadIdx.y;
     int id_x = blockIdx.x*blockDim.x + threadIdx.x;
     
-    // compute indexes on mat_block and mat
-    int idx_block = id_y*dim_x + id_x;
+    // compute indexes on mat_block and mat (we implicitly
+    // transpose mat_block because cublas_dgemm() works in
+    // column major order)
+    int idx_block = id_x*dim_x + id_y;
     int idx = offset + id_y*jump + id_x;
 
     // copy data
@@ -198,9 +200,12 @@ int main(int argc, char** argv) {
         //////////////////////////////////////////////////////////////////////////
 
         // matmul
+        // (since cublasDgemm() works in col-major order, to avoid transpositions we 
+        // compute B_col.transpose * A.transpose and then transpose the result in the 
+        // accumulation kernel)
         const double alpha = 1.0;
         const double beta = 0.0;
-        cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N_rows, N_cols, N, &alpha, A_dev, N_rows, B_col_dev, N, &beta, C_block, N_rows);
+        cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N_cols, N_rows, N, &alpha, B_col_dev, N_cols, A_dev, N, &beta, C_block, N_cols);
 
         // accumulate results on C
         dim3 grid, block;
@@ -208,7 +213,7 @@ int main(int argc, char** argv) {
         grid.x = N_BLOCKS_X;
         block.y = N_cols / grid.y;
         block.x = N_rows / grid.x;
-        accumulate<<<grid, block>>>();
+        accumulate<<<grid, block>>>(C, C_block, N_rows, N_cols, offset, N);  // launch accumulation kernel
 
         // update offset of C blocks
         offset += N_cols;
