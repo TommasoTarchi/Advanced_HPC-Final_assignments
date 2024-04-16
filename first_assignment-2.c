@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
 	//////////////////////////////////////////////////////////////////////////
 
 	// matmul
-        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N_rows, B_col, N, 0.0, C_block, N_rows);
+        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N, B_col, N_cols, 0.0, C_block, N_cols);
         
         // copy result of computation to C
         for (int row=0; row<N_rows; row++)
