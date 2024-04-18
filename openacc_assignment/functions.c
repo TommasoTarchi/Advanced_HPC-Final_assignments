@@ -4,18 +4,18 @@
 
 
 // save matrix to file
-void evolve( double * matrix, double *matrix_new, size_t dimension ){
+void evolve( double * matrix, double *matrix_new, size_t dimension_y, size_t dimension_x ){
   
     size_t i , j;
 
     //This will be a row dominant program.
-    for( i = 1 ; i <= dimension; ++i )
-        for( j = 1; j <= dimension; ++j )
-            matrix_new[ ( i * ( dimension + 2 ) ) + j ] = ( 0.25 ) * 
-            ( matrix[ ( ( i - 1 ) * ( dimension + 2 ) ) + j ] + 
-              matrix[ ( i * ( dimension + 2 ) ) + ( j + 1 ) ] + 	  
-              matrix[ ( ( i + 1 ) * ( dimension + 2 ) ) + j ] + 
-              matrix[ ( i * ( dimension + 2 ) ) + ( j - 1 ) ] ); 
+    for( i = 1 ; i <= dimension_y; ++i )
+        for( j = 1; j <= dimension_x; ++j )
+            matrix_new[ ( i * ( dimension_x + 2 ) ) + j ] = ( 0.25 ) * 
+            ( matrix[ ( ( i - 1 ) * ( dimension_x + 2 ) ) + j ] + 
+              matrix[ ( i * ( dimension_x + 2 ) ) + ( j + 1 ) ] + 	  
+              matrix[ ( ( i + 1 ) * ( dimension_x + 2 ) ) + j ] + 
+              matrix[ ( i * ( dimension_x + 2 ) ) + ( j - 1 ) ] ); 
 }
 
 // evolve Jacobi

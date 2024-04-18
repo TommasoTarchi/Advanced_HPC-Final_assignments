@@ -14,6 +14,7 @@ int main(int argc, char* argv[]){
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Status status;
 
     // indexes for loops
     size_t i, j, it;
@@ -97,12 +98,25 @@ int main(int argc, char* argv[]){
         }
     }
 
+    // define variables for send-receive (using MPI_PROC_NULL 
+    // as dummy destination-source)
+    int destsource_up = my_rank - 1;
+    int destsource_down = my_rank + 1;
+    if (my_rank == 0)
+        destsource_up = MPI_PROC_NULL;
+    if (my_rank == n_procs-1)
+        destsource_down = MPI_PROC_NULL;
+
     // start algorithm
     for (it=0; it<iterations; ++it) {
 
-        // AGGIUNGERE BORDERS COMMUNICATIONS
+        // send and receive bordering data (backward first and 
+        // forward then)
+        MPI_Sendrecv(matrix, N+2, MPI_DOUBLE, destsource_up, destsource_up, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, destsource_down, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, destsource_down, matrix, N+2, MPI_DOUBLE, destsource_up, destsource_up, MPI_COMM_WORLD, &status);
 
-        evolve(matrix, matrix_new, N);  // MODIFICARE FUNZIONE IN HEADER PERCHÈ CON MPI MATRICE NON QUADRATA
+        // evolve state of cells
+        evolve(matrix, matrix_new, N_loc, N);
 
         // swap the pointers
         tmp_matrix = matrix;
