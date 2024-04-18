@@ -9,7 +9,7 @@
 
 module load openmpi/4.1.6--gcc--12.2.0
 
-srun -n 1 mpicc -lm first_assignment-1.c -o first_assignment-1.x
+srun -n 1 mpicc -lm functions.c first_assignment-1.c -o first_assignment-1.x
 
 mpirun ./first_assignment-1.x
 

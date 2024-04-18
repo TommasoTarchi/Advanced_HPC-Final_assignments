@@ -2,9 +2,14 @@
 #include <stdlib.h>
 #include <math.h>
 #include <mpi.h>
+#include <cuda_device_runtime_api.h>
+#include <cuda_runtime_api.h>
+#include <cublas_v2.h>
 
 
-#define N 10 
+#define N 10
+#define N_BLOCKS_Y 5  // GPU blocks along y
+#define N_BLOCKS_X 5  // GPU blocks along x
 
 
 // function to randomly initialize matrices
@@ -37,6 +42,23 @@ void create_block(double* mat, double* block, int block_y, int block_x, int offs
     }
 }
 
+// kernel for accumulation of blocks in C
+__global__ void accumulate(double* mat, double* mat_block, int dim_y, int dim_x, int offset, int jump) {
+
+    // get ID of GPU thread
+    int id_y = blockIdx.y*blockDim.y + threadIdx.y;
+    int id_x = blockIdx.x*blockDim.x + threadIdx.x;
+    
+    // compute indexes on mat_block and mat (we implicitly
+    // transpose mat_block because cublas_dgemm() works in
+    // column major order)
+    int idx_block = id_x*dim_x + id_y;
+    int idx = offset + id_x*jump + id_y;
+
+    // copy data
+    mat[idx] = mat_block[idx_block];
+}
+
 
 int main(int argc, char** argv) {
 
@@ -47,6 +69,20 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 
+    ///////////////////////////////////////////////////////////////////////////
+    printf("I'm %d of %d\n", my_rank, n_procs);
+    MPI_Barrier(MPI_COMM_WORLD);
+    //////////////////////////////////////////////////////////////////////////
+
+    // init cublas
+    cublasHandle_t cublas_handle;
+    cublasCreate(&cublas_handle);
+
+    // set devices 
+    int n_devices;
+    cudaGetDeviceCount(&n_devices);
+    cudaSetDevice(my_rank % n_devices);
+
     // compute local matrices size
     int N_loc_short = N / n_procs;
     int N_loc_long = N_loc_short + 1;
@@ -55,17 +91,17 @@ int main(int argc, char** argv) {
     if (my_rank < N_rest)
         N_loc = N_loc_long;
     else
-	N_loc = N_loc_short;
+        N_loc = N_loc_short;
     
     // define array to store sizes pf blocks to be received
     int* counts_recv = (int*) malloc(n_procs * sizeof(int));
     for (int count=0; count<N_rest; count++)
-	counts_recv[count] = N_loc_long*N_loc_long;
+        counts_recv[count] = N_loc_long*N_loc_long;
     for (int count=N_rest; count<n_procs; count++) {
-	if (N_rest)
-	    counts_recv[count] = N_loc_short*N_loc_long;
-	else
-	    counts_recv[count] = N_loc_short*N_loc_short;
+        if (N_rest)
+            counts_recv[count] = N_loc_short*N_loc_long;
+        else
+            counts_recv[count] = N_loc_short*N_loc_short;
     }
 
     // define array with positions of blocks to be received
@@ -73,14 +109,21 @@ int main(int argc, char** argv) {
     displacements[0] = 0;
     int while_count = 1;
     while (while_count < n_procs) {
-	displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
-	while_count++;
+        displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
+        while_count++;
     }
 
     // allocate local matrices
     double* A = (double*) malloc(N_loc * N * sizeof(double));
     double* B = (double*) malloc(N_loc * N * sizeof(double));
     double* C = (double*) malloc(N_loc * N * sizeof(double));
+    
+    // allocate needed local matrices on device and copy data
+    double* A_dev;
+    double* C_dev;
+    cudaMalloc((void**) &A_dev, N_loc * N * sizeof(double));
+    cudaMemcpy(A_dev, A, N_loc * N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void**) &C_dev, N_loc * N * sizeof(double));
 
     // initialize A and B with personal seeds
     double current_time = MPI_Wtime();
@@ -91,33 +134,29 @@ int main(int argc, char** argv) {
 
     //////////////////////////////////////////////////////////////
     if (my_rank == 0) {
-        FILE* file = fopen("A.bin", "wb");
+        FILE* file = fopen("A3.bin", "wb");
         fwrite(A, sizeof(double), N_loc*N, file);
         fclose(file);
-        file = fopen("B.bin", "wb");
+        file = fopen("B3.bin", "wb");
         fwrite(B, sizeof(double), N_loc*N, file);
         fclose(file);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     for (int count=1; count<n_procs; count++) {
         if (my_rank == count) {
-            FILE* file = fopen("A.bin", "ab");
+            FILE* file = fopen("A3.bin", "ab");
             fwrite(A, sizeof(double), N_loc*N, file);
             fclose(file);
-            file = fopen("B.bin", "ab");
+            file = fopen("B3.bin", "ab");
             fwrite(B, sizeof(double), N_loc*N, file);
             fclose(file);
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
-
-    //printf("I'm %d and I have: %f  %f\n", my_rank, A[0], B[0]);
-
-    //printf("I'm %d and I have N_loc=%d and last seed: %d\n", my_rank, N_loc, my_seed);
     //////////////////////////////////////////////////////////////
 
     // define quantities for blocks computation
-    int offset = 0;
+    int offset = 0;  // offset of C blocks
     int N_rows = N_loc;
     int N_cols = N_loc_long;
 
@@ -127,36 +166,29 @@ int main(int argc, char** argv) {
 
     for (int count=0; count<n_procs; count++) {
 	
-	if (count == N_rest) {
+        if (count == N_rest) {
             // update number of columns and reallocate auxiliary matrices
-	    N_cols = N_loc_short;
+            N_cols = N_loc_short;
             B_block = (double*) realloc(B_block, N_rows * N_cols * sizeof(double));
             B_col = (double*) realloc(B_col, N * N_cols * sizeof(double));
 
-	    // update count_recv and displacements arrays
-	    for (int count2=0; count2<N_rest; count2++)
-		counts_recv[count2] = N_loc_long*N_loc_short;
-	    for (int count2=N_rest; count2<n_procs; count2++)
-		counts_recv[count2] = N_loc_short*N_loc_short;  // not changed in case of zero rest
-	    while_count = 1;
-	    while (while_count < n_procs) {
-		displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
-		while_count++;
-	    }
-	}
+            // update count_recv and displacements arrays
+            for (int count2=0; count2<N_rest; count2++)
+                counts_recv[count2] = N_loc_long*N_loc_short;
+            for (int count2=N_rest; count2<n_procs; count2++)
+                counts_recv[count2] = N_loc_short*N_loc_short;  // not changed in case of zero rest
+            while_count = 1;
+            while (while_count < n_procs) {
+                displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
+                while_count++;
+            }
+        }
 
-        ///////////////////////////////////////////////////////////////////////////
-        //if (my_rank == 0)
-	//    printf("-- ITERATION %d --\n", count);
-	//MPI_Barrier(MPI_COMM_WORLD);
-
-        //printf("I'm %d and I have %d rows and %d columns\n", my_rank, N_rows, N_cols);
-        //MPI_Barrier(MPI_COMM_WORLD);
-	
-	//printf("I'm %d and my disp is: %d, %d, %d, %d\n", my_rank, displacements[0], displacements[1], displacements[2], displacements[3]);
-	//printf("I'm %d and my sizes are: %d, %d, %d, %d\n", my_rank, counts_recv[0], counts_recv[1], counts_recv[2], counts_recv[3]);
-	//MPI_Barrier(MPI_COMM_WORLD);
-        ///////////////////////////////////////////////////////////////////////////
+        // allocate auxiliary matrices on device
+        double* B_col_dev;
+        double* C_block;
+        cudaMalloc((void**) &B_col_dev, N * N_cols * sizeof(double));
+        cudaMalloc((void**) &C_block, N_rows * N_cols * sizeof(double));
 
         // create block to send to other processes
         create_block(B, B_block, N_rows, N_cols, offset, N);
@@ -164,42 +196,55 @@ int main(int argc, char** argv) {
         // send and receive blocks
         MPI_Allgatherv(B_block, N_rows*N_cols, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
 
-	/////////////////////////////////////////////////////////////////////////////
-	//printf("I'm %d of %d\n", my_rank, n_procs);
-	//MPI_Barrier(MPI_COMM_WORLD);
-	/////////////////////////////////////////////////////////////////////////////
+        // copy gathered data to device
+        cudaMemcpy(B_col_dev, B_col, N*N_cols*sizeof(double), cudaMemcpyHostToDevice);
 
-        // matmul ('row' and 'col' count rows and columns of the block of C)
-        for (int row=0; row<N_rows; row++) {
-            for (int col=0; col<N_cols; col++) {
-                double acc=0;
-                for (int k=0; k<N; k++)
-                    acc += A[row*N + k] * B_col[col + k*N_cols];
-                C[offset + row*N + col] = acc;
-            }
-        }
+        ///////////////////////////////////////////////////////////////////////////
+        printf("I'm %d of %d\n", my_rank, n_procs);
+        MPI_Barrier(MPI_COMM_WORLD);
+        //////////////////////////////////////////////////////////////////////////
 
-	// update offset of C blocks
-	offset += N_cols;
+        // matmul
+        // (since cublasDgemm() works in col-major order, to avoid transpositions we 
+        // compute B_col.transpose * A.transpose and then transpose the result in the 
+        // accumulation kernel)
+        const double alpha = 1.0;
+        const double beta = 0.0;
+        cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N_cols, N_rows, N, &alpha, B_col_dev, N_cols, A_dev, N, &beta, C_block, N_cols);
+
+        // accumulate results on C
+        dim3 grid, block;
+        grid.y = N_BLOCKS_Y;
+        grid.x = N_BLOCKS_X;
+        block.y = N_cols / grid.y;
+        block.x = N_rows / grid.x;
+        accumulate<<<grid, block>>>(C, C_block, N_rows, N_cols, offset, N);  // launch accumulation kernel
+
+        // update offset of C blocks
+        offset += N_cols;
+
+        cudaFree(B_col_dev);
+        cudaFree(C_block);
     }
 
+    // copy accumulated computation from device to host
+    cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
+    
     //////////////////////////////////////////////////////////////
     if (my_rank == 0) {
-        FILE* file = fopen("C.bin", "wb");
+        FILE* file = fopen("C3.bin", "wb");
         fwrite(C, sizeof(double), N_loc*N, file);
         fclose(file);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     for (int count=1; count<n_procs; count++) {
         if (my_rank == count) {
-            FILE* file = fopen("C.bin", "ab");
+            FILE* file = fopen("C3.bin", "ab");
             fwrite(C, sizeof(double), N_loc*N, file);
             fclose(file);
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
-
-    //printf("I'm %d and I have: %f\n", my_rank, C[0]);
     //////////////////////////////////////////////////////////////
 
     free(counts_recv);
@@ -209,6 +254,10 @@ int main(int argc, char** argv) {
     free(C);
     free(B_block);
     free(B_col);
+    cudaFree(A_dev);
+    cudaFree(C_dev);
+
+    cublasDestroy(cublas_handle);
 
     MPI_Finalize();
 

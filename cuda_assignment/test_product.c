@@ -11,6 +11,7 @@
 
 
 #define N 10
+#define PRINT_N 10
 #define EPS 1e-6  // tolerance in comparison between C and C_check elements
 
 
@@ -24,13 +25,13 @@ int main() {
 
     // read output matrices of the parallel program
     FILE* file;
-    file = fopen("A2.bin", "rb");
+    file = fopen("A.bin", "rb");
     fread(A, sizeof(double), N * N, file);
     fclose(file);
-    file = fopen("B2.bin", "rb");
+    file = fopen("B.bin", "rb");
     fread(B, sizeof(double), N * N, file);
     fclose(file);
-    file = fopen("C2.bin", "rb");
+    file = fopen("C.bin", "rb");
     fread(C, sizeof(double), N * N, file);
     fclose(file);
 
@@ -52,8 +53,9 @@ int main() {
     // print result
     printf("errors in matrix-matrix product: %d / %d\n", error_counter, N*N);
 
+#ifdef PRINT
     // print first elements of matrices
-    int first_n = 10;
+    int first_n = PRINT_N;
     for (int i=0; i<first_n; i++) {
 	for (int j=0; j<first_n; j++)
 	    printf("%f  ", A[i*N + j]);
@@ -77,6 +79,7 @@ int main() {
 	    printf("%f  ", C_check[i*N + j]);
 	printf("\n");
     }
+#endif
     
     free(A);
     free(B);
