@@ -18,7 +18,6 @@ void random_mat(double* mat, int mat_size, unsigned int seed) {
         mat[i] = (double) rand() / (double) RAND_MAX * factor;
 }
 
-
 // creates a block (submatrix) at a given location of a larger matrix
 // 
 // 'offset' is the first element of block and 'jump' is the distance between
