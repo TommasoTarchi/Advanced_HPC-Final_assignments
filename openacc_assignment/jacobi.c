@@ -32,7 +32,7 @@ int main(int argc, char* argv[]){
         if (my_rank == 0)
             fprintf(stderr,"\nwrong number of arguments. Usage: ./a.out dim it n m\n");
         
-        MPI_Barrier();
+        MPI_Barrier(MPI_COMM_WORLD);
         return 1;
     }
     N = atoi(argv[1]);
@@ -66,7 +66,7 @@ int main(int argc, char* argv[]){
             fprintf(stderr, "Arguments n and m must be smaller than %zu\n", N);
         }
 
-        MPI_Barrier();
+        MPI_Barrier(MPI_COMM_WORLD);
         return 1;
     }
 
@@ -112,8 +112,8 @@ int main(int argc, char* argv[]){
 
         // send and receive bordering data (backward first and 
         // forward then)
-        MPI_Sendrecv(matrix, N+2, MPI_DOUBLE, destsource_up, destsource_up, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, destsource_down, MPI_COMM_WORLD, &status);
-        MPI_Sendrecv(&matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, destsource_down, matrix, N+2, MPI_DOUBLE, destsource_up, destsource_up, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(matrix, N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, destsource_down, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, destsource_up, MPI_COMM_WORLD, &status);
 
         // evolve state of cells
         evolve(matrix, matrix_new, N_loc, N);
@@ -125,11 +125,13 @@ int main(int argc, char* argv[]){
     }
 
     // print element for checking
-    if ((offset / N < row_peek) && (row_peek < offset / N + N_loc)) {
-        size_t true_row_peek = row_peek % (offset / N);
+    if (((offset / N) < row_peek) && (row_peek < (offset / N + N_loc))) {
+	size_t true_row_peek = row_peek;
+	if (my_rank)
+            true_row_peek = row_peek % (offset / N);
         printf("\nmatrix[%zu,%zu] = %f\n", row_peek, col_peek, matrix[(true_row_peek + 1) * (N + 2) + (col_peek + 1)]);
     }
-
+    
     save_gnuplot(matrix, N);
 
     free(matrix);
