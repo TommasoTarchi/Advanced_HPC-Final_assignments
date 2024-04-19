@@ -18,18 +18,18 @@ int main(int argc, char* argv[]){
     MPI_Status status;
 
     // setting devices
-#ifdef OPENACC  
+#ifdef OPENACC
     int n_gpus = acc_get_num_devices(acc_device_nvidia);
+    printf("%d\n", n_gpus);
     int i_gpu = my_rank % n_gpus;
     
     acc_set_device_num(i_gpu, acc_device_nvidia);
     acc_init(acc_device_nvidia);
     
     ////////////////////////////////////////////////////////////////
-    if (!rank)
-        fprintf(stdout, "NUM GPU: %d\n", n_gpus);
-    fprintf(stdout, "GPU ID: %d, PID: %d\n", i_gpu, my_rank);
-    fflush(stdout);
+    if (!my_rank)
+        printf("NUM GPU: %d\n", n_gpus);
+    printf("GPU ID: %d, PID: %d\n", i_gpu, my_rank);
     //////////////////////////////////////////////////////////////////
 #endif
 
@@ -115,8 +115,11 @@ int main(int argc, char* argv[]){
         }
     }
 
+    // define lengths for data movement between host and device
+    size_t total_length = (N_loc+2) * (N+2), length1 = 2 * (N+2), length2 = N_loc * (N+2);
+
     // copy matrix to device
-    #pragma acc enter data copyin(matrix[0:(N_loc+2)*(N+2)], matrix_new[0:(N_loc+2)*(N+2)]) {}
+    #pragma acc enter data copyin(matrix[0:total_length], matrix_new[0:total_length])
 
     // define variables for send-receive (using MPI_PROC_NULL 
     // as dummy destination-source)
@@ -127,6 +130,11 @@ int main(int argc, char* argv[]){
     if (my_rank == n_procs-1)
         destsource_down = MPI_PROC_NULL;
 
+    //////////////////////////////////////////////////////////
+    printf("--- I'm %d\n", my_rank);
+    MPI_Barrier(MPI_COMM_WORLD);
+    //////////////////////////////////////////////////////////
+
     // start algorithm
     for (it=0; it<iterations; ++it) {
     
@@ -135,35 +143,36 @@ int main(int argc, char* argv[]){
         MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, destsource_down, MPI_COMM_WORLD, &status);
         MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, destsource_up, MPI_COMM_WORLD, &status);
 
-        // update bordering rows with received data
-        #pragma acc update device(matrix[N+2:2*(N+2)], matrix[N_loc*(N+2):(N_loc+1)*(N+2)]) {}
+    //////////////////////////////////////////////////////////
+    printf("--- I'm %d\n", my_rank);
+    MPI_Barrier(MPI_COMM_WORLD);
+    //////////////////////////////////////////////////////////
 
-        // update system's state on GPU
-        #pragma acc parallel 
-        {
-            // evolve cells
-            #pragma acc loop gang collapse(2) 
-            for (i=1; i<=N_loc; ++i)
-                for (j=1; j<=N; ++j)
-                    matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
-                    ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
-                      matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+        // update bordering rows with received (data on device)
+        #pragma acc update device(matrix[N+2:length1], matrix[length2:length2+N+2])
 
-            // swap the pointers
-            #pragma acc single 
-            {
-                double* tmp_matrix;
-                tmp_matrix = matrix;
-                matrix = matrix_new;
-                matrix_new = tmp_matrix;
-            }
+        // update system's state on device
+        #pragma acc parallel loop gang present(matrix, matrix_new) collapse(2)
+        for (i=1; i<=N_loc; ++i)
+            for (j=1; j<=N; ++j)
+                matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
+                ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
+                  matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
+                  matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
+                  matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+	
+	// swap pointers (directly on device)
+	#pragma acc parallel num_gangs(1) num_workers(1) vector_length(1) present(matrix, matrix_new)
+	{
+	    double* tmp_matrix;
+	    tmp_matrix = matrix;
+	    matrix = matrix_new;
+	    matrix_new = tmp_matrix;
         }
     }
 
     // copy final matrix back to host
-    #pragma acc exit data copyout(matrix[0:(N_loc+2)*(N+2)]) delete(matrix_new[0:(N_loc+2)*(N+2)]) {}
+    #pragma acc exit data copyout(matrix[0:total_length]) delete(matrix_new[0:total_length])
     
     // print element for checking
     if (((offset / N) <= row_peek) && (row_peek < (offset / N + N_loc))) {
