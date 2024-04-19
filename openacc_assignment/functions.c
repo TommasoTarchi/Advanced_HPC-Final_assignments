@@ -4,21 +4,6 @@
 
 
 // save matrix to file
-void evolve(double* matrix, double* matrix_new, size_t dimension_y, size_t dimension_x) {
-  
-    size_t i , j;
-
-    //This will be a row dominant program.
-    for (i=1; i<=dimension_y; ++i)
-        for (j=1; j<=dimension_x; ++j)
-            matrix_new[ ( i * ( dimension_x + 2 ) ) + j ] = ( 0.25 ) * 
-            ( matrix[ ( ( i - 1 ) * ( dimension_x + 2 ) ) + j ] + 
-              matrix[ ( i * ( dimension_x + 2 ) ) + ( j + 1 ) ] + 	  
-              matrix[ ( ( i + 1 ) * ( dimension_x + 2 ) ) + j ] + 
-              matrix[ ( i * ( dimension_x + 2 ) ) + ( j - 1 ) ] ); 
-}
-
-// evolve Jacobi
 void save_gnuplot(double *M, size_t dim_y, size_t dim_x, int rank, double y_offset, int n_procs) {
   
     size_t i , j;
@@ -45,6 +30,21 @@ void save_gnuplot(double *M, size_t dim_y, size_t dim_x, int rank, double y_offs
             fprintf(file, "%f\t%f\t%f\n", h*j, -y_offset-h*(dim_y+1), M[(dim_y+1) * (dim_x+2) + j]);
 
     fclose(file);
+}
+
+// evolve Jacobi
+void evolve(double* matrix, double* matrix_new, size_t dimension_y, size_t dimension_x) {
+  
+    size_t i , j;
+
+    //This will be a row dominant program.
+    for (i=1; i<=dimension_y; ++i)
+        for (j=1; j<=dimension_x; ++j)
+            matrix_new[ ( i * ( dimension_x + 2 ) ) + j ] = ( 0.25 ) * 
+            ( matrix[ ( ( i - 1 ) * ( dimension_x + 2 ) ) + j ] + 
+              matrix[ ( i * ( dimension_x + 2 ) ) + ( j + 1 ) ] + 	  
+              matrix[ ( ( i + 1 ) * ( dimension_x + 2 ) ) + j ] + 
+              matrix[ ( i * ( dimension_x + 2 ) ) + ( j - 1 ) ] ); 
 }
 
 // return the elapsed time
