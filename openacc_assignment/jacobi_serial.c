@@ -119,7 +119,7 @@ void save_gnuplot( double *M, size_t dimension ){
   const double h = 0.1;
   FILE *file;
 
-  file = fopen( "solution.dat", "w" );
+  file = fopen( "solution_serial.dat", "w" );
 
   for( i = 0; i < dimension + 2; ++i )
     for( j = 0; j < dimension + 2; ++j )

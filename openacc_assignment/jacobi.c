@@ -37,8 +37,8 @@ int main(int argc, char* argv[]){
     }
     N = atoi(argv[1]);
     iterations = atoi(argv[2]);
-    row_peek = atoi(argv[3]);
-    col_peek = atoi(argv[4]);
+    row_peek = (size_t) atoi(argv[3]);
+    col_peek = (size_t) atoi(argv[4]);
 
     // compute local matrix dimensions
     size_t N_loc = N / n_procs;
@@ -74,8 +74,6 @@ int main(int argc, char* argv[]){
     byte_dimension = sizeof(double) * (N_loc + 2) * (N + 2);
     matrix = (double*) malloc(byte_dimension);
     matrix_new = (double*) malloc(byte_dimension);
-
-    // CAPIRE A CHE SERVONO STE DUE RIGHE (E SE VANNO CAMBIATE CON L'AGGIUNTA DI MPI)
     memset(matrix, 0, byte_dimension);
     memset(matrix_new, 0, byte_dimension);
 
@@ -88,11 +86,13 @@ int main(int argc, char* argv[]){
     double increment = 100.0 / (N + 1);
     double increment_start = increment * (offset / N);
     for (i=1; i<=N_loc+1; ++i) {
-        matrix[i * (N + 2)] = increment_start + i * increment;
+        
+	matrix[i * (N + 2)] = increment_start + i * increment;
         matrix_new[i * (N + 2)] = increment_start + i * increment;
     }
     if (my_rank == n_procs-1) {
-        for (i=1; i<=N+1; i++) {
+        
+	for (i=1; i<=N+1; i++) {
             matrix[((N_loc + 1) * (N + 2)) + (N + 1 - i)] = i * increment;
             matrix_new[((N_loc + 1) * (N + 2)) + (N + 1 - i)] = i * increment;
         }
@@ -109,11 +109,11 @@ int main(int argc, char* argv[]){
 
     // start algorithm
     for (it=0; it<iterations; ++it) {
-
+    
         // send and receive bordering data (backward first and 
         // forward then)
-        MPI_Sendrecv(matrix, N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, destsource_down, MPI_COMM_WORLD, &status);
-        MPI_Sendrecv(&matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, destsource_up, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, destsource_down, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, destsource_up, MPI_COMM_WORLD, &status);
 
         // evolve state of cells
         evolve(matrix, matrix_new, N_loc, N);
@@ -123,16 +123,38 @@ int main(int argc, char* argv[]){
         matrix = matrix_new;
         matrix_new = tmp_matrix;
     }
-
+    
     // print element for checking
-    if (((offset / N) < row_peek) && (row_peek < (offset / N + N_loc))) {
+    if (((offset / N) <= row_peek) && (row_peek < (offset / N + N_loc))) {
+	
 	size_t true_row_peek = row_peek;
 	if (my_rank)
             true_row_peek = row_peek % (offset / N);
-        printf("\nmatrix[%zu,%zu] = %f\n", row_peek, col_peek, matrix[(true_row_peek + 1) * (N + 2) + (col_peek + 1)]);
+        
+	printf("\nmatrix[%zu,%zu] = %f\n", row_peek, col_peek, matrix[(true_row_peek + 1) * (N + 2) + (col_peek + 1)]);
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
     
-    save_gnuplot(matrix, N);
+    // save data for plot (process 0 gathers data and prints them to file)
+    if (my_rank == 0) {
+
+	save_gnuplot(matrix, N_loc, N, my_rank, offset/N, n_procs);
+	
+	size_t offset_recv = N_loc;
+	for (int count=1; count<n_procs; count++) {
+
+	    size_t N_loc_recv = N / n_procs + (count < N_rest);
+	    MPI_Recv(matrix, (N_loc_recv+2)*(N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
+	    save_gnuplot(matrix, N_loc_recv, N, count, offset_recv/N, n_procs);
+
+	    offset_recv += N_loc_recv;
+	}
+    
+    } else {
+
+	MPI_Send(matrix, (N_loc+2)*(N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+    }
 
     free(matrix);
     free(matrix_new);
