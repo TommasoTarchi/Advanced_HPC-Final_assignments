@@ -7,7 +7,7 @@
 #include <cublas_v2.h>
 
 
-#define N 10
+#define N 8
 
 
 // function to randomly initialize matrices
@@ -50,9 +50,13 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 
-    // init cublas
+    // init cublas handle
     cublasHandle_t cublas_handle;
-    cublasCreate(&cublas_handle);
+    cublasStatus_t status = cublasCreate(&cublas_handle);
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        printf("cuBLAS initialization failed\n");
+        return 1;
+    }
 
     // set devices 
     int n_devices;
@@ -60,7 +64,7 @@ int main(int argc, char** argv) {
     if (check_setdev != cudaSuccess)
         fprintf(stderr, "cudaGetDeviceCount failed: %s\n", cudaGetErrorString(check_setdev));
     ////////////////////////////////////////////////////////////
-    printf("%d:   %d\n", my_rank, n_devices);
+    printf("%d sees %d devices\n", my_rank, n_devices);
     ////////////////////////////////////////////////////////////
     cudaSetDevice(my_rank % n_devices);
 
@@ -105,10 +109,10 @@ int main(int argc, char** argv) {
     cudaMalloc((void**) &A_dev, N_loc * N * sizeof(double));
     cudaMemcpy(A_dev, A, N_loc * N * sizeof(double), cudaMemcpyHostToDevice);
     cudaMalloc((void**) &C_dev, N_loc * N * sizeof(double));
-
+    
     ///////////////////////////////////////////////////////////////////////////
-    printf("I'm %d of %d\n", my_rank, n_procs);
-    MPI_Barrier(MPI_COMM_WORLD);
+    //printf("I'm %d of %d\n", my_rank, n_procs);
+    //MPI_Barrier(MPI_COMM_WORLD);
     //////////////////////////////////////////////////////////////////////////
 
     // initialize A and B with personal seeds
@@ -168,7 +172,7 @@ int main(int argc, char** argv) {
                 displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
                 while_count++;
             }
-        }
+       }
 
         // allocate auxiliary matrices on device
         double* B_col_dev;
@@ -187,16 +191,18 @@ int main(int argc, char** argv) {
 	if (check_copy != cudaSuccess)
 	    fprintf(stderr, "cudaMemcpy failed: %s\n", cudaGetErrorString(check_copy));
 
-        ///////////////////////////////////////////////////////////////////////////
-        //printf("I'm %d of %d\n", my_rank, n_procs);
-        //MPI_Barrier(MPI_COMM_WORLD);
-        //////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////////
+	//printf("I'm %d of %d\n", my_rank, n_procs);
+	//MPI_Barrier(MPI_COMM_WORLD);
+	//printf("I'm %d and I have %dx%d\n", my_rank, N_rows, N_cols);
+	//MPI_Barrier(MPI_COMM_WORLD);
+	//////////////////////////////////////////////////////////////////////////
 
         // matmul
         // (since cublasDgemm() works in col-major order, to avoid transpositions we 
         // compute B_col.transpose * A.transpose)
-        const double alpha = 1.0;
-        const double beta = 0.0;
+	double alpha = 1.0;
+	double beta = 0.0;
         cublasStatus_t check_cublas = cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N_cols, N_rows, N, &alpha, B_col_dev, N_cols, A_dev, N, &beta, &C_dev[offset], N);
 	if (check_cublas != CUBLAS_STATUS_SUCCESS) 
 	    fprintf(stderr, "CUDA error: %d\n", check_cublas);
@@ -208,22 +214,45 @@ int main(int argc, char** argv) {
     }
 
     // copy accumulated computation from device to host
-    cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
+    cudaError_t check_copy = cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
+    if (check_copy != cudaSuccess)
+        fprintf(stderr, "cudaMemcpy failed: %s\n", cudaGetErrorString(check_copy));
     
     //////////////////////////////////////////////////////////////
+    //if (my_rank == 0) {
+   //     FILE* file = fopen("C3.bin", "wb");
+    //    fwrite(C, sizeof(double), N_loc*N, file);
+    //    fclose(file);
+    //}
+ //   MPI_Barrier(MPI_COMM_WORLD);
+   // for (int count=1; count<n_procs; count++) {
+     //   if (my_rank == count) {
+       //     FILE* file = fopen("C3.bin", "ab");
+    //        fwrite(C, sizeof(double), N_loc*N, file);
+      //      fclose(file);
+        //}
+   //     MPI_Barrier(MPI_COMM_WORLD);
+    //}
+
+    double* C_big;
+    C_big = (double*) malloc(N * N * sizeof(double));
+    MPI_Gather(C, N_loc*N, MPI_DOUBLE, C_big, N*N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     if (my_rank == 0) {
-        FILE* file = fopen("C3.bin", "wb");
-        fwrite(C, sizeof(double), N_loc*N, file);
-        fclose(file);
+	FILE* file = fopen("C3.bin", "wb");
+	fwrite(C_big, sizeof(double), N*N, file);
+	fclose(file);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
-    for (int count=1; count<n_procs; count++) {
-        if (my_rank == count) {
-            FILE* file = fopen("C3.bin", "ab");
-            fwrite(C, sizeof(double), N_loc*N, file);
-            fclose(file);
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
+    free(C_big);
+
+    for (int count=0; count<n_procs; count++) {
+	    if (count == my_rank) {
+		    for (int i=0; i<N_loc; i++) {
+			    for (int j=0; j<N; j++)
+				    printf("%f ", C[i*N+j]);
+			    printf("\n");
+		    }
+	    }
+	    MPI_Barrier(MPI_COMM_WORLD);
     }
     //////////////////////////////////////////////////////////////
 

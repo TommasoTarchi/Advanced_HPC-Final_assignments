@@ -10,8 +10,8 @@
 #include <math.h>
 
 
-#define N 10
-#define PRINT_N 10
+#define N 8
+#define PRINT_N 8
 #define EPS 1e-6  // tolerance in comparison between C and C_check elements
 
 
@@ -25,16 +25,17 @@ int main() {
 
     // read output matrices of the parallel program
     FILE* file;
-    file = fopen("A.bin", "rb");
+    file = fopen("A3.bin", "rb");
     fread(A, sizeof(double), N * N, file);
     fclose(file);
-    file = fopen("B.bin", "rb");
+    file = fopen("B3.bin", "rb");
     fread(B, sizeof(double), N * N, file);
     fclose(file);
-    file = fopen("C.bin", "rb");
+    file = fopen("C3.bin", "rb");
     fread(C, sizeof(double), N * N, file);
     fclose(file);
 
+    // compute correct matrix-matrix multiplication result
     for (int row=0; row<N; row++) {
 	for (int col=0; col<N; col++) {
 	    double acc = 0;

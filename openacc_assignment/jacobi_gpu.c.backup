@@ -95,10 +95,8 @@ int main(int argc, char* argv[]){
 
     // fill initial values (EVENTUALMENTE PARALLELIZZARE CON OPENMP O OPENACC)
     for (i=1; i<=N_loc; ++i)
-        for (j=1; j<=N; ++j) {
+        for (j=1; j<=N; ++j)
             matrix[(i * (N + 2)) + j] = 0.5;
-            matrix_new[(i * (N + 2)) + j] = 0.5;
-	}
 
     // set up borders (EVENTUALMENTE PARALLELIZZARE CON OPENMP O OPENACC)
     double increment = 100.0 / (N + 1);
@@ -145,8 +143,8 @@ int main(int argc, char* argv[]){
     
         // send and receive bordering data (backward first and 
         // forward then)
-        MPI_Sendrecv(&matrix_new[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
-	MPI_Sendrecv(&matrix_new[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
+	MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
 
 	//////////////////////////////////////////////////////////
     	//printf("--- I'm %d\n", my_rank);
@@ -176,20 +174,25 @@ int main(int argc, char* argv[]){
     	//printf("--- I'm %d\n", my_rank);
     	//MPI_Barrier(MPI_COMM_WORLD);
     	//////////////////////////////////////////////////////////
-
+	
+	// TROVARE MODO ALTERNATIVODI FARE LO SWAP
+	// SI PUÒ USARE UN FOR LOOP CON CONDIZIONE IF i==0 (CIÒ PERÒ RALLENTA NOTEVOLMENTE IL CODICE
+	// NEL CASO IN CUI NON SI USI OPENACC
+	//
+	// IN QUESTO MODO FUNZIONA MA LO SWAP VIENE FATTO SULLA CPU E PER QUESTO È NECESSARIO OGNI
+	// VOLTA COPIARE TUTTA LA MATRICE NUOVA SULLA CPU
+	
         // update rows to be sent to other processes // ACTUALLY SHOULD ONLY UPDATE FIRST AND LAST ROWS
 	#pragma acc update self(matrix_new[0:total_length], matrix_new[0:total_length])
 	
 	// swap pointers (directly on device)
-        #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length])
-	for (i=0; i<N_loc*N; i++) {
-	    if (i == 0) {
-	        double* tmp_matrix;
-	        tmp_matrix = matrix;
-	        matrix = matrix_new;
-	        matrix_new = tmp_matrix;
-	    }
-	}
+	//#pragma acc parallel num_gangs(1) num_workers(1) vector_length(1) present(matrix, matrix_new)
+	//{
+	    double* tmp_matrix;
+	    tmp_matrix = matrix;
+	    matrix = matrix_new;
+	    matrix_new = tmp_matrix;
+        //}
 
 	//////////////////////////////////////////////////////////
     	//printf("--- I'm %d\n", my_rank);

@@ -6,7 +6,7 @@
 // save matrix to file
 void save_gnuplot(double *M, size_t dim_y, size_t dim_x, int rank, double y_offset, int n_procs) {
   
-    size_t i , j;
+    size_t i, j;
     const double h = 0.1;
     FILE *file;
 

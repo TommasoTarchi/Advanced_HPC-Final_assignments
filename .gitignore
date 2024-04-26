@@ -1,0 +1,10 @@
+# datafiles
+**/*.dat
+**/*.bin
+
+# executables and object files
+#**/*.x
+**/*.o
+
+# SLURM reports
+#**/report.out

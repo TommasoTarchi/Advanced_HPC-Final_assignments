@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=first_assignment-2
-#SBATCH --ntasks=4
+#SBATCH --ntasks=2
 #SBATCH --nodes=1
 #SBATCH --partition=boost_usr_prod
 #SBATCH -A ict24_dssc_gpu
