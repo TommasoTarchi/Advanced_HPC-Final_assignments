@@ -10,8 +10,8 @@
 #include <math.h>
 
 
-#define N 8
-#define PRINT_N 8
+#define N 10
+#define PRINT_N 10
 #define EPS 1e-6  // tolerance in comparison between C and C_check elements
 
 

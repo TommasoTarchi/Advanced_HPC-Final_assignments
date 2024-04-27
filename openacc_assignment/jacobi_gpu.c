@@ -145,17 +145,17 @@ int main(int argc, char* argv[]){
     
         // send and receive bordering data (backward first and 
         // forward then)
-        MPI_Sendrecv(&matrix_new[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
-	MPI_Sendrecv(&matrix_new[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
+	MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
 
 	//////////////////////////////////////////////////////////
     	//printf("--- I'm %d\n", my_rank);
     	//MPI_Barrier(MPI_COMM_WORLD);
     	//////////////////////////////////////////////////////////
 
-        // update bordering rows with received (data on device) // ACTUALLY SHOULD ONLY UPDATE FIRST AND LAST ROWS
-	size_t end1 = N+2, start2 = (N_loc+1) * (N+2);
-        #pragma acc update device(matrix[0:total_length], matrix[0:total_length])
+        // update bordering rows with received data on device
+	size_t start = (N_loc+1) * (N+2);
+        #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
 
 	//////////////////////////////////////////////////////////
     	//printf("--- I'm %d\n", my_rank);
@@ -177,19 +177,27 @@ int main(int argc, char* argv[]){
     	//MPI_Barrier(MPI_COMM_WORLD);
     	//////////////////////////////////////////////////////////
 
-        // update rows to be sent to other processes // ACTUALLY SHOULD ONLY UPDATE FIRST AND LAST ROWS
-	#pragma acc update self(matrix_new[0:total_length], matrix_new[0:total_length])
-	
-	// swap pointers (directly on device)
-        #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length])
-	for (i=0; i<N_loc*N; i++) {
-	    if (i == 0) {
-	        double* tmp_matrix;
-	        tmp_matrix = matrix;
-	        matrix = matrix_new;
-	        matrix_new = tmp_matrix;
-	    }
+	// switch pointers (if not using OpenACC) or copy data
+	// between matrices (if using OpenACC)
+	//
+	// NOTICE: in OpenACC pointer swapping is not available
+#ifdef OPENACC
+        #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent
+	for (i=0; i<(N_loc+2)*(N+2); i++) {
+	    double tmp = matrix[i];
+	    matrix[i] = matrix_new[i];
+	    matrix_new[i] = tmp;
 	}
+#else
+	double* tmp_matrix;
+	tmp_matrix = matrix;
+	matrix = matrix_new;
+	matrix_new = tmp_matrix;
+#endif
+
+        // update rows to be sent to other processes
+	start = N_loc * (N+2);
+	#pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
 
 	//////////////////////////////////////////////////////////
     	//printf("--- I'm %d\n", my_rank);

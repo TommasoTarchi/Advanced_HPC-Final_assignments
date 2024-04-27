@@ -3,8 +3,8 @@
 **/*.bin
 
 # executables and object files
-#**/*.x
+**/*.x
 **/*.o
 
 # SLURM reports
-#**/report.out
+**/report.out
