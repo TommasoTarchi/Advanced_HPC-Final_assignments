@@ -1,6 +1,9 @@
 /* 
  * this program reads three matrices A, B, C from corresponding binary 
  * files and checks whether A * B = C (row-column product)
+ *
+ * if compiled with -DPRINT it will print the upper left submatrix of
+ * size FIRST_N
  * 
  * */
 
@@ -10,12 +13,38 @@
 #include <math.h>
 
 
-#define N 10
-#define PRINT_N 10
+#define MATMUL 2  // 0 for simple matmul, 1 for blas, 2 for cublas
+#define N 27  // size of matrices
+#define PRINT_N 10  // size of submatrix to be printed
 #define EPS 1e-6  // tolerance in comparison between C and C_check elements
 
 
+#if MATMUL == 0
+    #define A_BIN "A_simple.bin"
+    #define B_BIN "B_simple.bin"
+    #define C_BIN "C_simple.bin"
+#elif MATMUL == 1
+    #define A_BIN "A_blas.bin"
+    #define B_BIN "B_blas.bin"
+    #define C_BIN "C_blas.bin"
+#elif MATMUL == 2
+    #define A_BIN "A_cublas.bin"
+    #define B_BIN "B_cublas.bin"
+    #define C_BIN "C_cublas.bin"
+#else
+    #error "MATMUL value must be 0, 1, or 2"
+#endif
+
+
 int main() {
+
+    if (MATMUL == 0)
+	printf("testing simple matmul...\n");
+    else if (MATMUL == 1)
+	printf("testing matmul using BLAS...\n");
+    else if (MATMUL == 2)
+	printf("testing matmul using cuBLAS...\n");
+
 
     // allocate matrices
     double* A = (double*) malloc(N * N * sizeof(double));
@@ -25,13 +54,13 @@ int main() {
 
     // read output matrices of the parallel program
     FILE* file;
-    file = fopen("A3.bin", "rb");
+    file = fopen(A_BIN, "rb");
     fread(A, sizeof(double), N * N, file);
     fclose(file);
-    file = fopen("B3.bin", "rb");
+    file = fopen(B_BIN, "rb");
     fread(B, sizeof(double), N * N, file);
     fclose(file);
-    file = fopen("C3.bin", "rb");
+    file = fopen(C_BIN, "rb");
     fread(C, sizeof(double), N * N, file);
     fclose(file);
 
@@ -52,7 +81,7 @@ int main() {
             error_counter++;
 
     // print result
-    printf("errors in matrix-matrix product: %d / %d\n", error_counter, N*N);
+    printf("errors: %d out of %d elements\n\n", error_counter, N*N);
 
 #ifdef PRINT
     // print first elements of matrices

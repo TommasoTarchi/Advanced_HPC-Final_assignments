@@ -1,3 +1,14 @@
+/*
+ *  performs Jacobi evolution of a grid of cells in parallel
+ *
+ * supports GPU acceleration with OpenACC (need to compile with
+ * -DOPENACC in case)
+ *
+ * base serial code is taken from prof. Ivan Girotto at ICTP
+ *
+ * */
+
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,12 +35,6 @@ int main(int argc, char* argv[]){
     
     acc_set_device_num(i_gpu, acc_device_nvidia);
     acc_init(acc_device_nvidia);
-    
-    ////////////////////////////////////////////////////////////////
-    //if (!my_rank)
-    //    printf("NUM GPU: %d\n", n_gpus);
-    //printf("GPU ID: %d, PID: %d\n", i_gpu, my_rank);
-    //////////////////////////////////////////////////////////////////
 #endif
 
     // indexes for loops
@@ -135,11 +140,6 @@ int main(int argc, char* argv[]){
 	tag_down = -1;  // arbitrary
     }
 
-    //////////////////////////////////////////////////////////
-    //printf("--- I'm %d\n", my_rank);
-    //MPI_Barrier(MPI_COMM_WORLD);
-    //////////////////////////////////////////////////////////
-
     // start algorithm
     for (it=0; it<iterations; ++it) {
     
@@ -148,19 +148,9 @@ int main(int argc, char* argv[]){
         MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
 	MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
 
-	//////////////////////////////////////////////////////////
-    	//printf("--- I'm %d\n", my_rank);
-    	//MPI_Barrier(MPI_COMM_WORLD);
-    	//////////////////////////////////////////////////////////
-
         // update bordering rows with received data on device
 	size_t start = (N_loc+1) * (N+2);
         #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
-
-	//////////////////////////////////////////////////////////
-    	//printf("--- I'm %d\n", my_rank);
-    	//MPI_Barrier(MPI_COMM_WORLD);
-    	//////////////////////////////////////////////////////////
 
         // update system's state on device
         #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
@@ -171,11 +161,6 @@ int main(int argc, char* argv[]){
                   matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
                   matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
                   matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
-	
-	//////////////////////////////////////////////////////////
-    	//printf("--- I'm %d\n", my_rank);
-    	//MPI_Barrier(MPI_COMM_WORLD);
-    	//////////////////////////////////////////////////////////
 
 	// switch pointers (if not using OpenACC) or copy data
 	// between matrices (if using OpenACC)
@@ -198,11 +183,6 @@ int main(int argc, char* argv[]){
         // update rows to be sent to other processes
 	start = N_loc * (N+2);
 	#pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
-
-	//////////////////////////////////////////////////////////
-    	//printf("--- I'm %d\n", my_rank);
-    	//MPI_Barrier(MPI_COMM_WORLD);
-    	//////////////////////////////////////////////////////////
     }
 
     // copy final matrix back to host

@@ -1,13 +1,28 @@
+/*
+ * matrix-matrix multiplication using dgemm() function of 
+ * BLAS library
+ *
+ * N is the side of the matrices and can be passed during
+ * compilation using -DN=<desired_value>
+ *
+ * */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
+#include <cblas.h>
 #include "functions.h"
 
 
-#define N 10 
+#ifndef MAT_SIZE
+    #define MAT_SIZE 100 // Default value if not defined during compilation
+#endif
 
 
 int main(int argc, char** argv) {
+
+    int N = MAT_SIZE;
 
     int my_rank, n_procs;
 
@@ -58,35 +73,32 @@ int main(int argc, char** argv) {
     my_seed += n_procs;
     random_mat(B, N_loc*N, my_seed);
 
-    //////////////////////////////////////////////////////////////
+    /////////////// for testing correctness of matmul ////////////////
+    //////////////////////////////////////////////////////////////////
     if (my_rank == 0) {
-        FILE* file = fopen("A.bin", "wb");
+        FILE* file = fopen("test_matmul/A_blas.bin", "wb");
         fwrite(A, sizeof(double), N_loc*N, file);
         fclose(file);
-        file = fopen("B.bin", "wb");
+        file = fopen("test_matmul/B_blas.bin", "wb");
         fwrite(B, sizeof(double), N_loc*N, file);
         fclose(file);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     for (int count=1; count<n_procs; count++) {
         if (my_rank == count) {
-            FILE* file = fopen("A.bin", "ab");
+            FILE* file = fopen("test_matmul/A_blas.bin", "ab");
             fwrite(A, sizeof(double), N_loc*N, file);
             fclose(file);
-            file = fopen("B.bin", "ab");
+            file = fopen("test_matmul/B_blas.bin", "ab");
             fwrite(B, sizeof(double), N_loc*N, file);
             fclose(file);
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
-
-    //printf("I'm %d and I have: %f  %f\n", my_rank, A[0], B[0]);
-
-    //printf("I'm %d and I have N_loc=%d and last seed: %d\n", my_rank, N_loc, my_seed);
-    //////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////
 
     // define quantities for blocks computation
-    int offset = 0;
+    int offset = 0;  // offset of C blocks
     int N_rows = N_loc;
     int N_cols = N_loc_long;
 
@@ -114,62 +126,36 @@ int main(int argc, char** argv) {
 	    }
 	}
 
-        ///////////////////////////////////////////////////////////////////////////
-        //if (my_rank == 0)
-	//    printf("-- ITERATION %d --\n", count);
-	//MPI_Barrier(MPI_COMM_WORLD);
-
-        //printf("I'm %d and I have %d rows and %d columns\n", my_rank, N_rows, N_cols);
-        //MPI_Barrier(MPI_COMM_WORLD);
-	
-	//printf("I'm %d and my disp is: %d, %d, %d, %d\n", my_rank, displacements[0], displacements[1], displacements[2], displacements[3]);
-	//printf("I'm %d and my sizes are: %d, %d, %d, %d\n", my_rank, counts_recv[0], counts_recv[1], counts_recv[2], counts_recv[3]);
-	//MPI_Barrier(MPI_COMM_WORLD);
-        ///////////////////////////////////////////////////////////////////////////
-
         // create block to send to other processes
         create_block(B, B_block, N_rows, N_cols, offset, N);
 
         // send and receive blocks
         MPI_Allgatherv(B_block, N_rows*N_cols, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
 
-	/////////////////////////////////////////////////////////////////////////////
-	//printf("I'm %d of %d\n", my_rank, n_procs);
-	//MPI_Barrier(MPI_COMM_WORLD);
-	/////////////////////////////////////////////////////////////////////////////
-
-        // matmul ('row' and 'col' count rows and columns of the block of C)
-        for (int row=0; row<N_rows; row++) {
-            for (int col=0; col<N_cols; col++) {
-                double acc=0;
-                for (int k=0; k<N; k++)
-                    acc += A[row*N + k] * B_col[col + k*N_cols];
-                C[offset + row*N + col] = acc;
-            }
-        }
-
+	// matmul
+        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N, B_col, N_cols, 0.0, &C[offset], N);  // C, N_cols
+        
 	// update offset of C blocks
 	offset += N_cols;
     }
 
-    //////////////////////////////////////////////////////////////
+    /////////////// for testing correctness of matmul ////////////////
+    //////////////////////////////////////////////////////////////////
     if (my_rank == 0) {
-        FILE* file = fopen("C.bin", "wb");
+        FILE* file = fopen("test_matmul/C_blas.bin", "wb");
         fwrite(C, sizeof(double), N_loc*N, file);
         fclose(file);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     for (int count=1; count<n_procs; count++) {
         if (my_rank == count) {
-            FILE* file = fopen("C.bin", "ab");
+            FILE* file = fopen("test_matmul/C_blas.bin", "ab");
             fwrite(C, sizeof(double), N_loc*N, file);
             fclose(file);
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
-
-    //printf("I'm %d and I have: %f\n", my_rank, C[0]);
-    //////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////
 
     free(counts_recv);
     free(displacements);

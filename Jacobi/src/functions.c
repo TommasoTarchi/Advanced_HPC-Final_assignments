@@ -13,9 +13,9 @@ void save_gnuplot(double *M, size_t dim_y, size_t dim_x, int rank, double y_offs
     y_offset *= h;
 
     if (rank == 0)
-        file = fopen("solution.dat", "w");
+        file = fopen("plot/solution.dat", "w");
     else
-        file = fopen("solution.dat", "a");
+        file = fopen("plot/solution.dat", "a");
 
     if (rank == 0)
         for (j=0; j<dim_x+2; ++j)

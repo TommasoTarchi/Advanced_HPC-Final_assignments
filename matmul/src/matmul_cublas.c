@@ -1,47 +1,30 @@
+/*
+ * matrix-matrix multiplication using dgemm() function of
+ * cuBLAS library
+ *
+ * N is the side of the matrices and can be passed during
+ * compilation using -DN=<desired_value>
+ *
+ * */
+
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <mpi.h>
 #include <cuda_device_runtime_api.h>
 #include <cuda_runtime_api.h>
 #include <cublas_v2.h>
+#include "functions.h"
 
 
-#define N 10
-
-
-// function to randomly initialize matrices
-void random_mat(double* mat, int mat_size, unsigned int seed) {
-
-    // set seed
-    srand(seed);
-
-    // set factor to obtain elements with at most an order of 
-    // magnitude ~10^6 (to avoid overflow)
-    double exp = (6. - log10((double) mat_size)) / 2.;
-    double factor = pow(10., exp);
-
-    for (int i=0; i<mat_size; i++)
-        mat[i] = (double) rand() / (double) RAND_MAX * factor;
-}
-
-// function to create blocks to send to other processes
-// 
-// 'offset' is the first element of block and 'jump' is the distance between
-// first elements of each row of the block
-void create_block(double* mat, double* block, int block_y, int block_x, int offset, int jump) {
-
-    // copy data in block
-    for (int row=0; row<block_y; row++) {
-        int row_offset = offset + row*jump;
-        
-        for (int i=0; i<block_x; i++)
-            block[row*block_x + i] = mat[row_offset + i];
-    }
-}
+#ifndef MAT_SIZE
+    #define MAT_SIZE 100 // Default value if not defined during compilation
+#endif
 
 
 int main(int argc, char** argv) {
+
+    int N = MAT_SIZE;
 
     int my_rank, n_procs;
 
@@ -52,21 +35,11 @@ int main(int argc, char** argv) {
 
     // init cublas handle
     cublasHandle_t cublas_handle;
-    cublasStatus_t status = cublasCreate(&cublas_handle);
-    if (status != CUBLAS_STATUS_SUCCESS) {
-        printf("cuBLAS initialization failed\n");
-        return 1;
-    }
+    cublasCreate(&cublas_handle);
 
     // set devices 
     int n_devices;
-    cudaError_t check_setdev = cudaGetDeviceCount(&n_devices);
-    if (check_setdev != cudaSuccess)
-        fprintf(stderr, "cudaGetDeviceCount failed: %s\n", cudaGetErrorString(check_setdev));
-    ////////////////////////////////////////////////////////////
-    printf("%d sees %d devices\n", my_rank, n_devices);
-    ////////////////////////////////////////////////////////////
-    cudaSetDevice(my_rank % n_devices);
+    cudaGetDeviceCount(&n_devices);
 
     // compute local matrices size
     int N_loc_short = N / n_procs;
@@ -117,33 +90,23 @@ int main(int argc, char** argv) {
     cudaMemcpy(A_dev, A, N_loc * N * sizeof(double), cudaMemcpyHostToDevice);
     cudaMalloc((void**) &C_dev, N_loc * N * sizeof(double));
     
-    ///////////////////////////////////////////////////////////////////////////
-    //for (int i=0; i<N_loc*N; i++)
-    //    C[i] = 0.1;
-    //cudaMemcpy(C_dev, C, N_loc*N*sizeof(double), cudaMemcpyHostToDevice);
-    ///////////////////////////////////////////////////////////////////////////
-    
-    ///////////////////////////////////////////////////////////////////////////
-    //printf("I'm %d of %d\n", my_rank, n_procs);
-    //MPI_Barrier(MPI_COMM_WORLD);
-    //////////////////////////////////////////////////////////////////////////
-
-    //////////////////////////////////////////////////////////////
+    /////////////// for testing correctness of matmul ////////////////
+    //////////////////////////////////////////////////////////////////
     if (my_rank == 0) {
-        FILE* file = fopen("A3.bin", "wb");
+        FILE* file = fopen("test_matmul/A_cublas.bin", "wb");
         fwrite(A, sizeof(double), N_loc*N, file);
         fclose(file);
-        file = fopen("B3.bin", "wb");
+        file = fopen("test_matmul/B_cublas.bin", "wb");
         fwrite(B, sizeof(double), N_loc*N, file);
         fclose(file);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     for (int count=1; count<n_procs; count++) {
         if (my_rank == count) {
-            FILE* file = fopen("A3.bin", "ab");
+            FILE* file = fopen("test_matmul/A_cublas.bin", "ab");
             fwrite(A, sizeof(double), N_loc*N, file);
             fclose(file);
-            file = fopen("B3.bin", "ab");
+            file = fopen("test_matmul/B_cublas.bin", "ab");
             fwrite(B, sizeof(double), N_loc*N, file);
             fclose(file);
         }
@@ -182,9 +145,7 @@ int main(int argc, char** argv) {
 
         // allocate auxiliary matrices on device
         double* B_col_dev;
-        cudaError_t check_malloc = cudaMalloc((void**) &B_col_dev, N * N_cols * sizeof(double));
-	if (check_malloc != cudaSuccess)
-	    fprintf(stderr, "cudaMalloc failed: %s\n", cudaGetErrorString(check_malloc));
+	cudaMalloc((void**) &B_col_dev, N * N_cols * sizeof(double));
 
         // create block to send to other processes
         create_block(B, B_block, N_rows, N_cols, offset, N);
@@ -193,71 +154,41 @@ int main(int argc, char** argv) {
         MPI_Allgatherv(B_block, N_rows*N_cols, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
 
         // copy gathered data to device
-        cudaError_t check_copy = cudaMemcpy(B_col_dev, B_col, N*N_cols*sizeof(double), cudaMemcpyHostToDevice);
-	if (check_copy != cudaSuccess)
-	    fprintf(stderr, "cudaMemcpy failed: %s\n", cudaGetErrorString(check_copy));
-
-	///////////////////////////////////////////////////////////////////////////
-	//printf("I'm %d of %d\n", my_rank, n_procs);
-	//MPI_Barrier(MPI_COMM_WORLD);
-	//printf("I'm %d and I have %dx%d\n", my_rank, N_rows, N_cols);
-	//MPI_Barrier(MPI_COMM_WORLD);
-	//////////////////////////////////////////////////////////////////////////
+        cudaMemcpy(B_col_dev, B_col, N*N_cols*sizeof(double), cudaMemcpyHostToDevice);
 
         // matmul
         // (since cublasDgemm() works in col-major order, to avoid transpositions we 
         // compute B_col.transpose * A.transpose)
 	const double alpha = 1.0;
 	const double beta = 0.0;
-        cublasStatus_t check_cublas = cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N_cols, N_rows, N, &alpha, B_col_dev, N_cols, A_dev, N, &beta, &C_dev[offset], N);
-	if (check_cublas != CUBLAS_STATUS_SUCCESS) 
-	    fprintf(stderr, "CUDA error: %d\n", check_cublas);
+        cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N_cols, N_rows, N, &alpha, B_col_dev, N_cols, A_dev, N, &beta, &C_dev[offset], N);
 
         // update offset of C blocks
         offset += N_cols;
 
         cudaFree(B_col_dev);
-
-	/////////////////////////////////////////////////////////////////
-        //check_copy = cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
-    	//if (check_copy != cudaSuccess)
-        //    fprintf(stderr, "cudaMemcpy failed: %s\n", cudaGetErrorString(check_copy));
-        //for (int count=0; count<n_procs; count++) {
-	//    if (count == my_rank) {
-	//	for (int i=0; i<N_loc; i++) {
-	//	    for (int j=0; j<N; j++)
-	//	        printf("%f ", C[i*N+j]);
-	//	    printf("\n");
-	//	}
-	//    }
-	//    MPI_Barrier(MPI_COMM_WORLD);
-        //}
-	//if (my_rank == 0)
-	//    printf("\n");
-	/////////////////////////////////////////////////////////////////
     }
 
     // copy accumulated computation from device to host
-    cudaError_t check_copy = cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
-    if (check_copy != cudaSuccess)
-        fprintf(stderr, "cudaMemcpy failed: %s\n", cudaGetErrorString(check_copy));
+    cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
     
-    //////////////////////////////////////////////////////////////
+    //////////////// for testing correctness of matmul /////////////////
+    ////////////////////////////////////////////////////////////////////
     if (my_rank == 0) {
-        FILE* file = fopen("C3.bin", "wb");
+        FILE* file = fopen("test_matmul/C_cublas.bin", "wb");
         fwrite(C, sizeof(double), N_loc*N, file);
         fclose(file);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     for (int count=1; count<n_procs; count++) {
         if (my_rank == count) {
-            FILE* file = fopen("C3.bin", "ab");
+            FILE* file = fopen("test_matmul/C_cublas.bin", "ab");
             fwrite(C, sizeof(double), N_loc*N, file);
             fclose(file);
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
-    //////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////
 
     free(counts_recv);
     free(displacements);
