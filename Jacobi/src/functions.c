@@ -3,8 +3,8 @@
 #include "functions.h"
 
 
-// save matrix to file
-void save_gnuplot(double *M, size_t dim_y, size_t dim_x, int rank, double y_offset, int n_procs) {
+// save matrix state to file (each MPI process it's own grid)
+void save_gnuplot_parallel(double *M, size_t dim_y, size_t dim_x, int rank, double y_offset, int n_procs) {
   
     size_t i, j;
     const double h = 0.1;
@@ -32,19 +32,18 @@ void save_gnuplot(double *M, size_t dim_y, size_t dim_x, int rank, double y_offs
     fclose(file);
 }
 
-// evolve Jacobi
-void evolve(double* matrix, double* matrix_new, size_t dimension_y, size_t dimension_x) {
-  
-    size_t i , j;
+// save matrix state to file (serial case)
+void save_gnuplot(double *M, size_t mat_size) {
 
-    //This will be a row dominant program.
-    for (i=1; i<=dimension_y; ++i)
-        for (j=1; j<=dimension_x; ++j)
-            matrix_new[ ( i * ( dimension_x + 2 ) ) + j ] = ( 0.25 ) * 
-            ( matrix[ ( ( i - 1 ) * ( dimension_x + 2 ) ) + j ] + 
-              matrix[ ( i * ( dimension_x + 2 ) ) + ( j + 1 ) ] + 	  
-              matrix[ ( ( i + 1 ) * ( dimension_x + 2 ) ) + j ] + 
-              matrix[ ( i * ( dimension_x + 2 ) ) + ( j - 1 ) ] ); 
+    size_t i, j;
+    const double h = 0.1;
+    FILE *file = fopen("plot/solution.dat", "w");
+
+    for (i=0; i<mat_size+2; i++) 
+        for (j=0; j<mat_size+2; j++)
+            fprintf(file, "%f\t%f\t%f\n", h*j, -h*i, M[i * (mat_size+2) + j]);
+
+    fclose(file);
 }
 
 // return the elapsed time

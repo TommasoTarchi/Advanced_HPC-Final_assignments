@@ -133,11 +133,11 @@ int main(int argc, char* argv[]){
     int tag_down = my_rank + 1;
     if (my_rank == 0) {
         destsource_up = MPI_PROC_NULL;
-	tag_up = -1;  // arbitrary
+	    tag_up = -1;  // arbitrary
     }
     if (my_rank == n_procs-1) {
         destsource_down = MPI_PROC_NULL;
-	tag_down = -1;  // arbitrary
+	    tag_down = -1;  // arbitrary
     }
 
     // start algorithm
@@ -146,10 +146,10 @@ int main(int argc, char* argv[]){
         // send and receive bordering data (backward first and 
         // forward then)
         MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
-	MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
+	    MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
 
         // update bordering rows with received data on device
-	size_t start = (N_loc+1) * (N+2);
+	    size_t start = (N_loc+1) * (N+2);
         #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
 
         // update system's state on device
@@ -167,7 +167,7 @@ int main(int argc, char* argv[]){
 	//
 	// NOTICE: in OpenACC pointer swapping is not available
 #ifdef OPENACC
-        #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent
+    #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent
 	for (i=0; i<(N_loc+2)*(N+2); i++) {
 	    double tmp = matrix[i];
 	    matrix[i] = matrix_new[i];
@@ -204,21 +204,21 @@ int main(int argc, char* argv[]){
     // save data for plot (process 0 gathers data and prints them to file)
     if (my_rank == 0) {
 
-	save_gnuplot(matrix, N_loc, N, my_rank, offset/N, n_procs);
-	
-	size_t offset_recv = N_loc;
-	for (int count=1; count<n_procs; count++) {
+        save_gnuplot_parallel(matrix, N_loc, N, my_rank, offset/N, n_procs);
+        
+        size_t col_offset_recv = N_loc;
+        for (int count=1; count<n_procs; count++) {
 
-	    size_t N_loc_recv = N / n_procs + (count < N_rest);
-	    MPI_Recv(matrix, (N_loc_recv+2)*(N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
-	    save_gnuplot(matrix, N_loc_recv, N, count, offset_recv/N, n_procs);
+            size_t N_loc_recv = N / n_procs + (count < N_rest);
+            MPI_Recv(matrix, (N_loc_recv+2)*(N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
+            save_gnuplot_parallel(matrix, N_loc_recv, N, count, col_offset_recv, n_procs);
 
-	    offset_recv += N_loc_recv;
-	}
+            col_offset_recv += N_loc_recv;
+        }
     
     } else {
 
-	MPI_Send(matrix, (N_loc+2)*(N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+        MPI_Send(matrix, (N_loc+2)*(N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
     }
 
     free(matrix);

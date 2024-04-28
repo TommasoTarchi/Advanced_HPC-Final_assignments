@@ -39,11 +39,11 @@
 int main() {
 
     if (MATMUL == 0)
-	printf("testing simple matmul...\n");
+	    printf("testing simple matmul...\n");
     else if (MATMUL == 1)
-	printf("testing matmul using BLAS...\n");
+	    printf("testing matmul using BLAS...\n");
     else if (MATMUL == 2)
-	printf("testing matmul using cuBLAS...\n");
+	    printf("testing matmul using cuBLAS...\n");
 
 
     // allocate matrices
@@ -66,12 +66,12 @@ int main() {
 
     // compute correct matrix-matrix multiplication result
     for (int row=0; row<N; row++) {
-	for (int col=0; col<N; col++) {
-	    double acc = 0;
-	    for (int i=0; i<N; i++)
-		acc += A[row*N + i] * B[col + i*N];
-	    C_check[row*N + col] = acc;
-	}
+        for (int col=0; col<N; col++) {
+            double acc = 0;
+            for (int i=0; i<N; i++)
+                acc += A[row*N + i] * B[col + i*N];
+            C_check[row*N + col] = acc;
+        }
     }
 
     // comparison of results
@@ -87,27 +87,27 @@ int main() {
     // print first elements of matrices
     int first_n = PRINT_N;
     for (int i=0; i<first_n; i++) {
-	for (int j=0; j<first_n; j++)
-	    printf("%f  ", A[i*N + j]);
-	printf("\n");
+        for (int j=0; j<first_n; j++)
+            printf("%f  ", A[i*N + j]);
+        printf("\n");
     }
     printf("\n\n");
     for (int i=0; i<first_n; i++) {
-	for (int j=0; j<first_n; j++)
-	    printf("%f  ", B[i*N + j]);
-	printf("\n");
+        for (int j=0; j<first_n; j++)
+            printf("%f  ", B[i*N + j]);
+        printf("\n");
     }
     printf("\n\n");
     for (int i=0; i<first_n; i++) {
-	for (int j=0; j<first_n; j++)
-	    printf("%f  ", C[i*N + j]);
-	printf("\n");
+        for (int j=0; j<first_n; j++)
+            printf("%f  ", C[i*N + j]);
+        printf("\n");
     }
     printf("\n\n");
     for (int i=0; i<first_n; i++) {
-	for (int j=0; j<first_n; j++)
-	    printf("%f  ", C_check[i*N + j]);
-	printf("\n");
+        for (int j=0; j<first_n; j++)
+            printf("%f  ", C_check[i*N + j]);
+        printf("\n");
     }
 #endif
     

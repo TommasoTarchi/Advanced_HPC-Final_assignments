@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
 
         // allocate auxiliary matrices on device
         double* B_col_dev;
-	cudaMalloc((void**) &B_col_dev, N * N_cols * sizeof(double));
+        cudaMalloc((void**) &B_col_dev, N * N_cols * sizeof(double));
 
         // create block to send to other processes
         create_block(B, B_block, N_rows, N_cols, offset, N);
@@ -159,8 +159,8 @@ int main(int argc, char** argv) {
         // matmul
         // (since cublasDgemm() works in col-major order, to avoid transpositions we 
         // compute B_col.transpose * A.transpose)
-	const double alpha = 1.0;
-	const double beta = 0.0;
+        const double alpha = 1.0;
+        const double beta = 0.0;
         cublasDgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N_cols, N_rows, N, &alpha, B_col_dev, N_cols, A_dev, N, &beta, &C_dev[offset], N);
 
         // update offset of C blocks

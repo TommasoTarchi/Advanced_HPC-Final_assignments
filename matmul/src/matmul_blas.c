@@ -39,17 +39,17 @@ int main(int argc, char** argv) {
     if (my_rank < N_rest)
         N_loc = N_loc_long;
     else
-	N_loc = N_loc_short;
+        N_loc = N_loc_short;
     
     // define array to store sizes pf blocks to be received
     int* counts_recv = (int*) malloc(n_procs * sizeof(int));
     for (int count=0; count<N_rest; count++)
-	counts_recv[count] = N_loc_long*N_loc_long;
+        counts_recv[count] = N_loc_long*N_loc_long;
     for (int count=N_rest; count<n_procs; count++) {
-	if (N_rest)
-	    counts_recv[count] = N_loc_short*N_loc_long;
-	else
-	    counts_recv[count] = N_loc_short*N_loc_short;
+        if (N_rest)
+            counts_recv[count] = N_loc_short*N_loc_long;
+        else
+            counts_recv[count] = N_loc_short*N_loc_short;
     }
 
     // define array with positions of blocks to be received
@@ -57,8 +57,8 @@ int main(int argc, char** argv) {
     displacements[0] = 0;
     int while_count = 1;
     while (while_count < n_procs) {
-	displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
-	while_count++;
+        displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
+        while_count++;
     }
 
     // allocate local matrices
@@ -108,23 +108,23 @@ int main(int argc, char** argv) {
 
     for (int count=0; count<n_procs; count++) {
 	
-	if (count == N_rest) {
+        if (count == N_rest) {
             // update number of columns and reallocate auxiliary matrices
-	    N_cols = N_loc_short;
+            N_cols = N_loc_short;
             B_block = (double*) realloc(B_block, N_rows * N_cols * sizeof(double));
             B_col = (double*) realloc(B_col, N * N_cols * sizeof(double));
 
-	    // update count_recv and displacements arrays
-	    for (int count2=0; count2<N_rest; count2++)
-		counts_recv[count2] = N_loc_long*N_loc_short;
-	    for (int count2=N_rest; count2<n_procs; count2++)
-		counts_recv[count2] = N_loc_short*N_loc_short;  // not changed in case of zero rest
-	    while_count = 1;
-	    while (while_count < n_procs) {
-		displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
-		while_count++;
-	    }
-	}
+            // update count_recv and displacements arrays
+            for (int count2=0; count2<N_rest; count2++)
+                counts_recv[count2] = N_loc_long*N_loc_short;
+            for (int count2=N_rest; count2<n_procs; count2++)
+                counts_recv[count2] = N_loc_short*N_loc_short;  // not changed in case of zero rest
+            while_count = 1;
+            while (while_count < n_procs) {
+                displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
+                while_count++;
+            }
+        }
 
         // create block to send to other processes
         create_block(B, B_block, N_rows, N_cols, offset, N);
@@ -132,11 +132,11 @@ int main(int argc, char** argv) {
         // send and receive blocks
         MPI_Allgatherv(B_block, N_rows*N_cols, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
 
-	// matmul
+        // matmul
         cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N, B_col, N_cols, 0.0, &C[offset], N);  // C, N_cols
         
-	// update offset of C blocks
-	offset += N_cols;
+        // update offset of C blocks
+        offset += N_cols;
     }
 
     /////////////// for testing correctness of matmul ////////////////
