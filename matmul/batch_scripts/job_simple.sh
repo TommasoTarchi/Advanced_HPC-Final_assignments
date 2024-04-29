@@ -8,17 +8,23 @@
 
 
 # set matrix size
-mat_size=27
+mat_size=20
 
 
 module load openmpi/4.1.6--gcc--12.2.0
 
 cd ../
 
-srun -n 1 mpicc -lm src/functions.c src/matmul_simple.c -DMAT_SIZE=$mat_size -o matmul.x
+echo "#init,communication,computation" > ../profiling/times_simple.csv
 
-mpirun ./matmul.x
+srun -n 1 mpicc -lm src/functions.c src/matmul_simple.c -DTIME -DTEST -DMAT_SIZE=$mat_size -o matmul.x
+
+for ((nprocs = 1; nprocs <= 8; nprocs *= 2))
+do
+    mpirun -np "$nprocs" ./matmul.x
+done
+
 
 rm matmul.x
 
-cd batch_scripts/
+cd batch_scripts/ || exit

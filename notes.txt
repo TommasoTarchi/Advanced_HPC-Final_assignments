@@ -1,0 +1,13 @@
+TODO:
+
+- Capire perché necessaria barriera MPI prima di stampare risultati.
+- Nel report far notare che in OpenACC non è previsto il pointer swapping, quindi abbiamo
+  semplicemente copiato l'intera matrice ad ogni iterazione (non dovrebbe essere troppo
+  dispendiosa come operazione per la GPU, dato che consiste in semplici oprazioni 
+  indipendenti). Non potevamo usare due matrici, una per iterazioni pari e una per 
+  iterazioni dispari perché le direttive #pragma acc non possono essere inserite in if
+  statement.
+- Per codici senza GPU usare nodi senza GPU.
+- Capire bene come gestire save_gnuplot in Jacobi.
+- Capire bene se l'output del compilatore OpenACC in Jacobi mostra i movimenti di memoria
+  che ci si aspetta (magari chiedere a Girotto).
