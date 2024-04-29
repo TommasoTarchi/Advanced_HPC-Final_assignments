@@ -2,9 +2,13 @@
  * this program reads three matrices A, B, C from corresponding binary 
  * files and checks whether A * B = C (row-column product)
  *
+ * NOTICE: it must be compiled with -DMATMUL=<k>, where k can be 0, 1 
+ * or 2 corresponding, respectively to matmul performed "by hand", using 
+ * BLAS and using cuBLAS
+ *
  * if compiled with -DPRINT it will print the upper left submatrix of
  * size FIRST_N
- * 
+ *
  * */
 
 
@@ -13,21 +17,20 @@
 #include <math.h>
 
 
-#define MATMUL 2  // 0 for simple matmul, 1 for blas, 2 for cublas
-#define N 27  // size of matrices
+#define N 20  // size of matrices
 #define PRINT_N 10  // size of submatrix to be printed
 #define EPS 1e-6  // tolerance in comparison between C and C_check elements
 
 
-#if MATMUL == 0
+#if MATMUL == 0  // matmul "by hand"
     #define A_BIN "A_simple.bin"
     #define B_BIN "B_simple.bin"
     #define C_BIN "C_simple.bin"
-#elif MATMUL == 1
+#elif MATMUL == 1  // matmul using BLAS
     #define A_BIN "A_blas.bin"
     #define B_BIN "B_blas.bin"
     #define C_BIN "C_blas.bin"
-#elif MATMUL == 2
+#elif MATMUL == 2  // matmul using cuBLAS
     #define A_BIN "A_cublas.bin"
     #define B_BIN "B_cublas.bin"
     #define C_BIN "C_cublas.bin"

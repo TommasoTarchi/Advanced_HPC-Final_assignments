@@ -39,10 +39,6 @@ int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    
-    //////////////////////////////////////////////////////////////
-    printf("I'm %d of %d\n", my_rank, n_procs);
-    //////////////////////////////////////////////////////////////
 
     // compute local matrices size
     int N_loc_short = N / n_procs;
@@ -247,7 +243,7 @@ int main(int argc, char** argv) {
         }
 
         // print times
-        FILE* file = fopen("profiling/times_cublas.csv", "a");
+        FILE* file = fopen("profiling/times_blas.csv", "a");
         fprintf(file, "%f,%f,%f\n", total_times[0], total_times[1], total_times[2]);
         fclose(file);
 

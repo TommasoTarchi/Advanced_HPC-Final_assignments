@@ -1,4 +1,7 @@
-# datafiles
+# personal notes
+notes.txt
+
+# datafiles not needed for profiling analysis
 **/*.dat
 **/*.bin
 
@@ -8,6 +11,3 @@
 
 # SLURM reports
 **/report.out
-
-# personal notes
-notes.txt

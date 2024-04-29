@@ -42,10 +42,6 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     
-    //////////////////////////////////////////////////////////////
-    printf("I'm %d of %d\n", my_rank, n_procs);
-    //////////////////////////////////////////////////////////////
-
     // init cublas handle
     cublasHandle_t cublas_handle;
     cublasCreate(&cublas_handle);

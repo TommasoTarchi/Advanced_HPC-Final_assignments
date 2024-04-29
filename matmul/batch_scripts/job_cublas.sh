@@ -20,8 +20,8 @@ module load openblas/0.3.24--nvhpc--23.11
 
 cd ../
 
-echo "#init,communication,computation" > profiling/times_simple.csv
-echo "#" >> profiling/time_simple.csv
+echo "#init,communication,computation" > profiling/times_cublas.csv
+echo "#" >> profiling/times_cublas.csv
 
 srun -n 1 nvcc -lm src/functions.c -lmpi -lcublas -lcudart -L/leonardo/prod/opt/libraries/openmpi/4.1.6/nvhpc--23.11/lib/ -L/leonardo/prod/opt/compilers/cuda/12.1/none src/matmul_cublas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -o matmul.x
 

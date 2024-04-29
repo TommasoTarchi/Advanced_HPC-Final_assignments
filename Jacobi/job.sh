@@ -9,7 +9,7 @@
 
 
 # set matrix size
-mat_size=27
+mat_size=15
 
 
 module load cuda/
@@ -19,6 +19,6 @@ module load openmpi/4.1.6--nvhpc--23.11
 srun -n 1 mpicc -acc=noautopar -Minfo=all -DOPENACC src/functions.c src/jacobi.c -o jacobi.x
 #srun -n 1 mpicc src/functions.c src/jacobi.c -o jacobi.x
 
-mpirun ./jacobi.x $mat_size 100 7 4
+mpirun ./jacobi.x $mat_size 100 12 4 
 
 rm jacobi.x
