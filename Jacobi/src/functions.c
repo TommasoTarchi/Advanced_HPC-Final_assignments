@@ -78,7 +78,7 @@ void save_time(double* times, char* csv_name, int n_procs) {
     // print times
     char file_name[50];  // assume file_name no longer than 50 chars
     sprintf(file_name, "%s", csv_name);
-    FILE* file = fopen(csv_name, "a");
+    FILE* file = fopen(file_name, "a");
     fprintf(file, "%f,%f,%f\n", avg_times[0], avg_times[1], avg_times[2]);
     fclose(file);
 

@@ -20,13 +20,13 @@ cd ../
 echo "#init,communication,computation" > profiling/times_blas.csv
 echo "#,," >> profiling/times_blas.csv
 
-srun -n 1 mpicc -lm src/functions.c -lopenblas src/matmul_blas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -o matmul.x
+srun -n 1 mpicc -lm src/functions.c -lopenblas src/matmul_blas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -o matmul_blas.x
 
 for ((nprocs = 1; nprocs <= 8; nprocs *= 2))
 do
-    mpirun -np "$nprocs" ./matmul.x
+    mpirun -np "$nprocs" ./matmul_blas.x
 done
 
-rm matmul.x
+rm matmul_blas.x
 
 cd batch_scripts/ || exit

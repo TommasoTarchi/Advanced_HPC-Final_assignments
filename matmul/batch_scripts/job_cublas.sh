@@ -23,13 +23,13 @@ cd ../
 echo "#init,communication,computation" > profiling/times_cublas.csv
 echo "#,," >> profiling/times_cublas.csv
 
-srun -n 1 nvcc -lm src/functions.c -lmpi -lcublas -lcudart -L/leonardo/prod/opt/libraries/openmpi/4.1.6/nvhpc--23.11/lib/ -L/leonardo/prod/opt/compilers/cuda/12.1/none src/matmul_cublas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -o matmul.x
+srun -n 1 nvcc -lm src/functions.c -lmpi -lcublas -lcudart -L/leonardo/prod/opt/libraries/openmpi/4.1.6/nvhpc--23.11/lib/ -L/leonardo/prod/opt/compilers/cuda/12.1/none src/matmul_cublas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -o matmul_cublas.x
 
 for ((nprocs = 1; nprocs <= 8; nprocs *= 2))
 do
-    mpirun -np "$nprocs" ./matmul.x
+    mpirun -np "$nprocs" ./matmul_cublas.x
 done
 
-rm matmul.x
+rm matmul_cublas.x
 
 cd batch_scripts/ || exit

@@ -286,8 +286,8 @@ int main(int argc, char* argv[]){
     MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
-        char* csv_name[] = "profiling/times.csv";
-        save_time(times, csv_name, n_proc);
+        char csv_name[] = "profiling/times.csv";
+        save_time(times, csv_name, n_procs);
     }
 
     free(times);
