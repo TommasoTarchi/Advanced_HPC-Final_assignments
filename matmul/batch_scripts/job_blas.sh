@@ -18,7 +18,6 @@ module load openblas/0.3.24--gcc--12.2.0
 cd ../
 
 echo "#init,communication,computation" > profiling/times_blas.csv
-echo "#,," >> profiling/times_blas.csv
 
 srun -n 1 mpicc -lm src/functions.c -lopenblas src/matmul_blas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -o matmul_blas.x
 

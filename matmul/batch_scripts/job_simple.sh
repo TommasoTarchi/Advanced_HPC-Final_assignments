@@ -17,7 +17,6 @@ module load openmpi/4.1.6--gcc--12.2.0
 cd ../
 
 echo "#init,communication,computation" > profiling/times_simple.csv
-echo "#,," >> profiling/times_simple.csv
 
 srun -n 1 mpicc -lm src/functions.c src/matmul_simple.c -DTIME -DTEST -DMAT_SIZE=$mat_size -o matmul_simple.x
 

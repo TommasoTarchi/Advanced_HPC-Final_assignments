@@ -18,7 +18,6 @@ module load openmpi/4.1.6--nvhpc--23.11
 
 
 echo "#init,communication,computation" > profiling/times.csv
-echo "#,," >> profiling/times.csv
 
 srun -n 1 mpicc -acc=noautopar -Minfo=all -DOPENACC -DTIME src/functions.c src/jacobi.c -o jacobi.x
 #srun -n 1 mpicc src/functions.c src/jacobi.c -o jacobi.x

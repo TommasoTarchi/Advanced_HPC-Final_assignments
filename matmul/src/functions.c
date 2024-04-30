@@ -2,22 +2,54 @@
 #include <stdlib.h>
 #include <math.h>
 #include "functions.h"
+#ifdef OPENMP
+#include <omp.h>
+#endif
 
 
 // randomly initializes elements of a matrix
 void random_mat(double* mat, int mat_size, unsigned int seed) {
 
-    // set seed
-    srand(seed);
+    // get each thread's id (=0 if openMP is not enabled)
+    int my_thread_id = 0;
+   #pragma omp parallel
+    {
+	    int my_thread_id = omp_get_thread_num();
+    }
+    // needed for random numbers generation
+    struct drand48_data rand_gen;
 
     // set factor to obtain elements with at most an order of 
     // magnitude ~10^6 (to avoid overflow)
     double exp = (6. - log10((double) mat_size)) / 2.;
     double factor = pow(10., exp);
 
-    for (int i=0; i<mat_size; i++)
-        mat[i] = (double) rand() / (double) RAND_MAX * factor;
+   #pragma omp parallel
+    {
+        // setting a different seed for each thread
+        srand48_r(seed+my_thread_id, &rand_gen);
+
+       #pragma omp for
+        for (int i=0; i<mat_size; i++) {
+            
+            // producing a uniformly distributed number between 0 and 1
+            double random_number;
+            drand48_r(&rand_gen, &random_number);
+
+            // assigning random value to element in matrix
+            mat[i] = random_number * factor;
+    }
 }
+    // set seed
+    //srand(seed);
+    //
+    // set factor to obtain elements with at most an order of 
+    // magnitude ~10^6 (to avoid overflow)
+    //double exp = (6. - log10((double) mat_size)) / 2.;
+    //double factor = pow(10., exp);
+    //
+    //for (int i=0; i<mat_size; i++)
+    //    mat[i] = (double) rand() / (double) RAND_MAX * factor;
 
 // creates a block (submatrix) at a given location of a larger matrix
 // 

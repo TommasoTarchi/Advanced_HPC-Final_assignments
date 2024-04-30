@@ -7,6 +7,9 @@
  * initialization, communications and computations will be 
  * printed to CSV file called times.csv in profiling/ folder
  *
+ * compile with -DOPENMP for further parallelization of grid 
+ * initialization
+ *
  * base serial code is taken from prof. Ivan Girotto at ICTP
  *
  * */
@@ -17,6 +20,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <mpi.h>
+#include <omp.h>
 #include <openacc.h>
 #include "functions.h"
 
@@ -115,11 +119,12 @@ int main(int argc, char* argv[]){
 #endif
 
     // fill initial values
+   #pragma omp parallel for collapse(2)
     for (i=1; i<=N_loc; ++i)
         for (j=1; j<=N; ++j) {
             matrix[(i * (N + 2)) + j] = 0.5;
             matrix_new[(i * (N + 2)) + j] = 0.5;
-	}
+        }
 
     // set up borders
     double increment = 100.0 / (N + 1);
@@ -143,7 +148,7 @@ int main(int argc, char* argv[]){
 
     // copy matrix to device
     size_t total_length = (N_loc+2) * (N+2);
-    #pragma acc enter data copyin(matrix[0:total_length], matrix_new[0:total_length])
+   #pragma acc enter data copyin(matrix[0:total_length], matrix_new[0:total_length])
 
 #ifdef TIME
     t3 = MPI_Wtime();
@@ -188,14 +193,14 @@ int main(int argc, char* argv[]){
 
         // update bordering rows with received data on device
 	    size_t start = (N_loc+1) * (N+2);
-        #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
+       #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
 
 #ifdef TIME
         t5 = MPI_Wtime();
 #endif
 
         // update system's state on device
-        #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
+       #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
         for (i=1; i<=N_loc; ++i)
             for (j=1; j<=N; ++j)
                 matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
@@ -209,7 +214,7 @@ int main(int argc, char* argv[]){
         //
         // NOTICE: in OpenACC pointer swapping is not available
 #ifdef OPENACC
-        #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent
+       #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent
         for (i=0; i<(N_loc+2)*(N+2); i++) {
             double tmp = matrix[i];
             matrix[i] = matrix_new[i];
@@ -229,11 +234,11 @@ int main(int argc, char* argv[]){
 
         // update rows to be sent to other processes
         start = N_loc * (N+2);
-        #pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
+       #pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
     }
 
     // copy final matrix back to host
-    #pragma acc exit data copyout(matrix[0:total_length]) delete(matrix_new[0:total_length])
+   #pragma acc exit data copyout(matrix[0:total_length]) delete(matrix_new[0:total_length])
     
     // print element for checking
     if (((offset / N) <= row_peek) && (row_peek < (offset / N + N_loc))) {
