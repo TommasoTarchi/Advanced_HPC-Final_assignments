@@ -243,26 +243,31 @@ int main(int argc, char** argv) {
     MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
+        char* csv_name[] = "profiling/times_simple.csv";
+        save_time(times, csv_name, n_proc);
+    }
+
+    //if (my_rank == 0) {
 
         // compute average times
-        double* total_times;
-        total_times = (double*) malloc(3 * sizeof(double));
-        total_times[0] = 0;
-        total_times[1] = 0;
-        total_times[2] = 0;
-        for (int count=0; count<n_procs; count++) {
-            total_times[0] += times[3 * count] / (double) n_procs;
-            total_times[1] += times[1 + 3 * count] / (double) n_procs;
-            total_times[2] += times[2 + 3 * count] / (double) n_procs;
-        }
+      //  double* total_times;
+        //total_times = (double*) malloc(3 * sizeof(double));
+//        total_times[0] = 0;
+  //      total_times[1] = 0;
+    //    total_times[2] = 0;
+      //  for (int count=0; count<n_procs; count++) {
+        //    total_times[0] += times[3 * count] / (double) n_procs;
+          //  total_times[1] += times[1 + 3 * count] / (double) n_procs;
+            //total_times[2] += times[2 + 3 * count] / (double) n_procs;
+        //}
 
         // print times
-        FILE* file = fopen("profiling/times_simple.csv", "a");
-        fprintf(file, "%f,%f,%f\n", total_times[0], total_times[1], total_times[2]);
-        fclose(file);
+//        FILE* file = fopen("profiling/times_simple.csv", "a");
+  //      fprintf(file, "%f,%f,%f\n", total_times[0], total_times[1], total_times[2]);
+    //    fclose(file);
 
-        free(total_times);
-    }
+      //  free(total_times);
+    //}
 
     free(times);
 #endif
