@@ -11,3 +11,11 @@ TODO:
 - Capire bene come gestire save_gnuplot in Jacobi.
 - Capire bene se l'output del compilatore OpenACC in Jacobi mostra i movimenti di memoria
   che ci si aspetta (magari chiedere a Girotto).
+- Capire se ha senso includere quel primo pezzo di codice nel tempo per comunicazioni in matmul.
+- Ricontrollare se vanno bene i punti scelti per profiling sia in matmul che in Jacobi.
+- Parallelizzare inizializzazione delle matrici in matmul e della griglia in Jacobi con OpenMP.
+- Capire in Jacobi in quale tempi includere i trasferimenti di memoria tra CPU e GPU
+  (teoricamente sarebbero comunicazioni, però il fatto di usare le GPU per il calcolo implica
+  i trasferimenti di memoria, cioè se non usassimo le GPU non dovremmo nemmeno fare questi
+  trasferimenti).
+- Capire se ha senso includere setup delle variabili per comunicazioni nel tempo di comunicazione

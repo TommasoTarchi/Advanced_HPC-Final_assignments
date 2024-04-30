@@ -1,8 +1,11 @@
 /*
- *  performs Jacobi evolution of a grid of cells in parallel
+ * performs Jacobi evolution of a grid of cells in parallel
  *
- * supports GPU acceleration with OpenACC (need to compile with
- * -DOPENACC in case)
+ * compile with -DOPENACC for GPU acceleration with OpenACC
+ *
+ * compile with -DTIME for profiling: times for matrix 
+ * initialization, communications and computations will be 
+ * printed to CSV file called times.csv in profiling/ folder
  *
  * base serial code is taken from prof. Ivan Girotto at ICTP
  *
@@ -35,6 +38,15 @@ int main(int argc, char* argv[]){
     
     acc_set_device_num(i_gpu, acc_device_nvidia);
     acc_init(acc_device_nvidia);
+#endif
+
+    // variables for timing
+    //
+    // (for clarity, we use t1 and t2 to time initialization,
+    // t3 and t4 to time communications, and t5 and t6 to time
+    // actual computation)
+#ifdef TIME
+    double t1, t2, t3, t4, t_comm = 0, t5, t6, t_comp = 0;
 #endif
 
     // indexes for loops
@@ -98,14 +110,18 @@ int main(int argc, char* argv[]){
     memset(matrix, 0, byte_dimension);
     memset(matrix_new, 0, byte_dimension);
 
-    // fill initial values (EVENTUALMENTE PARALLELIZZARE CON OPENMP O OPENACC)
+#ifdef TIME
+    t1 = MPI_Wtime();
+#endif
+
+    // fill initial values
     for (i=1; i<=N_loc; ++i)
         for (j=1; j<=N; ++j) {
             matrix[(i * (N + 2)) + j] = 0.5;
             matrix_new[(i * (N + 2)) + j] = 0.5;
 	}
 
-    // set up borders (EVENTUALMENTE PARALLELIZZARE CON OPENMP O OPENACC)
+    // set up borders
     double increment = 100.0 / (N + 1);
     double increment_start = increment * (offset / N);
     for (i=1; i<=N_loc+1; ++i) {
@@ -121,9 +137,17 @@ int main(int argc, char* argv[]){
         }
     }
 
+#ifdef TIME
+    t2 = MPI_Wtime();
+#endif
+
     // copy matrix to device
     size_t total_length = (N_loc+2) * (N+2);
     #pragma acc enter data copyin(matrix[0:total_length], matrix_new[0:total_length])
+
+#ifdef TIME
+    t3 = MPI_Wtime();
+#endif
 
     // define variables for send-receive (using MPI_PROC_NULL 
     // as dummy destination-source)
@@ -140,17 +164,35 @@ int main(int argc, char* argv[]){
 	    tag_down = -1;  // arbitrary
     }
 
+#ifdef TIME
+    t4 = MPI_Wtime();
+    t_comm += t4 - t3;
+#endif
+
     // start algorithm
     for (it=0; it<iterations; ++it) {
+
+#ifdef TIME
+        t3 = MPI_Wtime();
+#endif
     
         // send and receive bordering data (backward first and 
         // forward then)
         MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
 	    MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
 
+#ifdef TIME
+        t4 = MPI_Wtime();
+        t_comm += t4 - t3;
+#endif
+
         // update bordering rows with received data on device
 	    size_t start = (N_loc+1) * (N+2);
         #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
+
+#ifdef TIME
+        t5 = MPI_Wtime();
+#endif
 
         // update system's state on device
         #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
@@ -162,27 +204,32 @@ int main(int argc, char* argv[]){
                   matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
                   matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
 
-	// switch pointers (if not using OpenACC) or copy data
-	// between matrices (if using OpenACC)
-	//
-	// NOTICE: in OpenACC pointer swapping is not available
+        // switch pointers (if not using OpenACC) or copy data
+        // between matrices (if using OpenACC)
+        //
+        // NOTICE: in OpenACC pointer swapping is not available
 #ifdef OPENACC
-    #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent
-	for (i=0; i<(N_loc+2)*(N+2); i++) {
-	    double tmp = matrix[i];
-	    matrix[i] = matrix_new[i];
-	    matrix_new[i] = tmp;
-	}
+        #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent
+        for (i=0; i<(N_loc+2)*(N+2); i++) {
+            double tmp = matrix[i];
+            matrix[i] = matrix_new[i];
+            matrix_new[i] = tmp;
+        }
 #else
-	double* tmp_matrix;
-	tmp_matrix = matrix;
-	matrix = matrix_new;
-	matrix_new = tmp_matrix;
+        double* tmp_matrix;
+        tmp_matrix = matrix;
+        matrix = matrix_new;
+        matrix_new = tmp_matrix;
+#endif
+
+#ifdef TIME
+        t6 = MPI_Wtime();
+        t_comp += t6 - t5;
 #endif
 
         // update rows to be sent to other processes
-	start = N_loc * (N+2);
-	#pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
+        start = N_loc * (N+2);
+        #pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
     }
 
     // copy final matrix back to host
@@ -200,7 +247,6 @@ int main(int argc, char* argv[]){
 
     MPI_Barrier(MPI_COMM_WORLD);
     
-    // CAMBIARE (ATTENZIONE: LE COORDINATE VENGONO STAMPATE MALE PERCHE LA FUNZIONE ERA PENSATA PER STAMPARE IN PARALLELO)
     // save data for plot (process 0 gathers data and prints them to file)
     if (my_rank == 0) {
 
@@ -223,6 +269,29 @@ int main(int argc, char* argv[]){
 
     free(matrix);
     free(matrix_new);
+
+    // gather measured times and print them
+#ifdef TIME
+    double* times;
+
+    if (my_rank == 0)
+        times = (double*) malloc(n_procs * 3 * sizeof(double));    
+    else
+        times = (double*) malloc(3 * sizeof(double));
+
+    times[0] = t2 - t1;  // time for initialization
+    times[1] = t_comm;  // time for communications
+    times[2] = t_comp;  // time for computation
+    
+    MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (my_rank == 0) {
+        char* csv_name[] = "profiling/times.csv";
+        save_time(times, csv_name, n_proc);
+    }
+
+    free(times);
+#endif
 
     MPI_Finalize();
 

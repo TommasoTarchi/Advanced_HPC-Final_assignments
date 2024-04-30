@@ -3,7 +3,16 @@
  * cuBLAS library
  *
  * N is the side of the matrices and can be passed during
- * compilation using -DN=<desired_value>
+ * compilation using -DMAT_SIZE=<desired_value>
+ *
+ * to test correctness of matmul compile with -DTEST: 
+ * matrices A, B and C will be dumped to binary files in 
+ * the test/ folder
+ *
+ * to profile the code compile with -DTIME: times for 
+ * matrix initialization, communications and computations
+ * will be printed to CSV file called times_cublas.csv in 
+ * profiling/ folder
  *
  * */
 

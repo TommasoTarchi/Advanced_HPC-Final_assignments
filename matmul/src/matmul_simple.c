@@ -8,9 +8,10 @@
  * matrices A, B and C will be dumped to binary files in 
  * the test/ folder
  *
- * to time the code compile with -DTIME: times for 
+ * to profile the code compile with -DTIME: times for 
  * matrix initialization, communications and computations
- * will be printed ...
+ * will be printed to CSV file called times_simple.csv in 
+ * profiling/ folder
  *
  * */
 
