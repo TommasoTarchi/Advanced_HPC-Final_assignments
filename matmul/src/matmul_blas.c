@@ -14,6 +14,9 @@
  * will be printed to CSV file called times_blas.csv in 
  * profiling/ folder
  *
+ * to speed up matrices initialization using openMP 
+ * compile function.c with -fopenmp and -DOPENMP
+ *
  * */
 
 
@@ -22,9 +25,6 @@
 #include <mpi.h>
 #include <cblas.h>
 #include "functions.h"
-#ifdef OPENMP
-#include <omp.h>
-#endif
 
 
 #ifndef MAT_SIZE
@@ -99,35 +99,24 @@ int main(int argc, char** argv) {
     t1 = MPI_Wtime();
 #endif
 
-    // get number of openMP threads (=1 if openMP not enabled) 
-    int n_threads = 1;
-#ifdef OPENMP
-   #pragma omp parallel
-    {
-       #pragma omp master
-        n_threads = omp_get_num_threads();
-    }
-#endif
-
     // allocate local matrices
     double* A = (double*) malloc(N_loc * N * sizeof(double));
     double* B = (double*) malloc(N_loc * N * sizeof(double));
     double* C = (double*) malloc(N_loc * N * sizeof(double));
 
-    // compute seeds for all processes (on master process) 
-    // and broadcast them
+    // compute global seed and broadcast to all processes
     unsigned int my_seed;
     if (my_rank == 0) {
         double current_time = MPI_Wtime();
         my_seed = (unsigned int) (current_time + 1);  // '+1' needed because seeds 0 and 1 give same random seq.
-        MPI_Bcast(&my_seed, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
     }
-    my_seed += my_rank * n_threads;  // to make sure that each thread has different seed
-    
-    // initialize A and B with personal seeds
-    random_mat(A, N_loc*N, my_seed);
-    my_seed += n_procs * n_threads;
-    random_mat(B, N_loc*N, my_seed);
+    MPI_Bcast(&my_seed, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
+    // initialize A and B using different seed for each thread
+    // (and different for A and B)
+    int n_threads = random_mat(A, N_loc*N, my_seed, my_rank);
+    my_seed += (unsigned int) n_procs * (unsigned int) n_threads;
+    random_mat(B, N_loc*N, my_seed, my_rank);
 
 #ifdef TIME
     t2 = MPI_Wtime();

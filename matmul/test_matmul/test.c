@@ -17,7 +17,7 @@
 #include <math.h>
 
 
-#define N 20  // size of matrices
+#define N 10  // size of matrices
 #define PRINT_N 10  // size of submatrix to be printed
 #define EPS 1e-6  // tolerance in comparison between C and C_check elements
 
@@ -42,11 +42,11 @@
 int main() {
 
     if (MATMUL == 0)
-	    printf("testing simple matmul...\n");
+	    printf("testing simple matmul...\n\n");
     else if (MATMUL == 1)
-	    printf("testing matmul using BLAS...\n");
+	    printf("testing matmul using BLAS...\n\n");
     else if (MATMUL == 2)
-	    printf("testing matmul using cuBLAS...\n");
+	    printf("testing matmul using cuBLAS...\n\n");
 
 
     // allocate matrices

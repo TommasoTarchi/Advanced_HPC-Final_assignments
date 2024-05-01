@@ -7,27 +7,42 @@
 #endif
 
 
-// randomly initializes elements of a matrix
-void random_mat(double* mat, int mat_size, unsigned int seed) {
-
-    // get each thread's id (=0 if openMP is not enabled)
-    int my_thread_id = 0;
-   #pragma omp parallel
-    {
-	    int my_thread_id = omp_get_thread_num();
-    }
-    // needed for random numbers generation
-    struct drand48_data rand_gen;
+// randomly initializes elements of a matrix makes sure that each thread
+// on each MPi process has a different seed
+//
+// returns the number of threads per process (needed if the function is
+// used more than once within the same code, to not repeat seeds)
+//
+// NOTICE: in general we could have made code simpler by getting
+// n_treads outside this function in the main, but we couldn't, since
+// openMP seems to be not compatible with CUDA)
+int random_mat(double* mat, int mat_size, unsigned int seed, int rank) {
 
     // set factor to obtain elements with at most an order of 
     // magnitude ~10^6 (to avoid overflow)
     double exp = (6. - log10((double) mat_size)) / 2.;
     double factor = pow(10., exp);
 
+    int n_threads = 1;
+    int my_thread_id = 0;
    #pragma omp parallel
     {
-        // setting a different seed for each thread
-        srand48_r(seed+my_thread_id, &rand_gen);
+
+#ifdef OPENMP
+	// get number of threads on process
+	n_threads = omp_get_num_threads();
+
+	// get each thread's id (=0 if openMP is not enabled)
+	my_thread_id = omp_get_thread_num();
+#endif
+        
+	// setting a different seed for each thread
+	struct drand48_data rand_gen;
+        srand48_r(seed+(unsigned int)rank*(unsigned int)n_threads+(unsigned int)my_thread_id, &rand_gen);
+
+	//////////////////////////////////////////////////////
+	printf("\tfrom %d of %d seed=%u\n", my_thread_id, rank, seed+(unsigned int)rank*(unsigned int)n_threads+(unsigned int)my_thread_id);
+	//////////////////////////////////////////////////////
 
        #pragma omp for
         for (int i=0; i<mat_size; i++) {
@@ -38,18 +53,11 @@ void random_mat(double* mat, int mat_size, unsigned int seed) {
 
             // assigning random value to element in matrix
             mat[i] = random_number * factor;
+	}
     }
+
+    return n_threads;
 }
-    // set seed
-    //srand(seed);
-    //
-    // set factor to obtain elements with at most an order of 
-    // magnitude ~10^6 (to avoid overflow)
-    //double exp = (6. - log10((double) mat_size)) / 2.;
-    //double factor = pow(10., exp);
-    //
-    //for (int i=0; i<mat_size; i++)
-    //    mat[i] = (double) rand() / (double) RAND_MAX * factor;
 
 // creates a block (submatrix) at a given location of a larger matrix
 // 

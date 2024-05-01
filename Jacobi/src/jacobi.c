@@ -7,8 +7,8 @@
  * initialization, communications and computations will be 
  * printed to CSV file called times.csv in profiling/ folder
  *
- * compile with -DOPENMP for further parallelization of grid 
- * initialization
+ * compile with -fopenmp -DOPENMP for further parallelization 
+ * of grid initialization using openMP
  *
  * base serial code is taken from prof. Ivan Girotto at ICTP
  *
@@ -20,9 +20,11 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <mpi.h>
-#include <omp.h>
 #include <openacc.h>
 #include "functions.h"
+#ifdef OPENMP
+#include <omp.h>
+#endif
 
 
 int main(int argc, char* argv[]){
