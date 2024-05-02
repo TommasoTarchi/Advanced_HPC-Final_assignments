@@ -27,7 +27,7 @@ module load openmpi/4.1.6--nvhpc--23.11
 
 
 # create datafile
-echo "#init,communication,computation" > profiling/times.csv
+echo "#n_procs,init,communication,computation" > profiling/times.csv
 
 # compile program
 srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIME src/functions.c src/jacobi.c -o jacobi.x
@@ -36,6 +36,7 @@ srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIM
 # run program
 for ((nprocs = 1; nprocs <= 8; nprocs *= 2))
 do
+    echo -n "$nprocs" >> profiling/times.csv
 	mpirun -np "$nprocs" --map-by node:PE=1 ./jacobi.x $mat_size 100 12 4 
 done
 

@@ -1,2 +1,2 @@
-#init,communication,computation
-0.032667,0.026854,0.008298
+#n_procs,init,communication,computation
+1,0.032667,0.026854,0.008298

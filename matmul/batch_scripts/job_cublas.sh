@@ -31,7 +31,7 @@ module load openblas/0.3.24--nvhpc--23.11
 cd ../
 
 # create datafile
-echo "#init,communication,computation" > profiling/times_cublas.csv
+echo "#n_procs,init,communication,computation" > profiling/times_cublas.csv
 
 # compile program
 srun -n 1 -N 1 gcc -fopenmp -lm -c src/functions.c -DOPENMP -o src/functions.o
@@ -40,6 +40,7 @@ srun -n 1 -N 1 nvcc -lgomp -lmpi -lcublas -lcudart src/functions.o -L/leonardo/p
 # run program
 for ((nprocs = 1; nprocs <= 8; nprocs *= 2))
 do
+    echo -n "$nprocs" >> profiling/times.csv
     mpirun -np "$nprocs" --map-by node:PE=1 ./matmul_cublas.x
 done
 

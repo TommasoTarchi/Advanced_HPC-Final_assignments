@@ -27,7 +27,7 @@ module load openmpi/4.1.6--gcc--12.2.0
 cd ../
 
 # create datafile
-echo "#init,communication,computation" > profiling/times_simple.csv
+echo "#n_procs,init,communication,computation" > profiling/times_simple.csv
 
 # compile program
 srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c src/matmul_simple.c -DOPENMP -DTIME -DTEST -DMAT_SIZE=$mat_size -o matmul_simple.x
@@ -35,6 +35,7 @@ srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c src/matmul_simple.c -DOPENMP -
 # run program (each node will host 1 MPI processe)
 for ((nprocs = 1; nprocs <= 8; nprocs *= 2))
 do
+    echo -n "$nprocs" >> profiling/times.csv
     mpirun -np "$nprocs" --map-by node:PE=1 ./matmul_simple.x
 done
 

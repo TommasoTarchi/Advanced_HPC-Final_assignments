@@ -28,7 +28,7 @@ module load openblas/0.3.24--gcc--12.2.0
 cd ../
 
 # create datafile
-echo "#init,communication,computation" > profiling/times_blas.csv
+echo "#n_procs,init,communication,computation" > profiling/times_blas.csv
 
 # compile program
 srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c -lopenblas src/matmul_blas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -DOPENMP -o matmul_blas.x
@@ -36,6 +36,7 @@ srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c -lopenblas src/matmul_blas.c -
 # run program
 for ((nprocs = 1; nprocs <= 8; nprocs *= 2))
 do
+    echo -n "$nprocs" >> profiling/times.csv
     mpirun -np "$nprocs" --map-by node:PE=1 --display-map ./matmul_blas.x
 done
 
