@@ -40,10 +40,6 @@ int random_mat(double* mat, int mat_size, unsigned int seed, int rank) {
 	struct drand48_data rand_gen;
         srand48_r(seed+(unsigned int)rank*(unsigned int)n_threads+(unsigned int)my_thread_id, &rand_gen);
 
-	//////////////////////////////////////////////////////
-	printf("\tfrom %d of %d seed=%u\n", my_thread_id, rank, seed+(unsigned int)rank*(unsigned int)n_threads+(unsigned int)my_thread_id);
-	//////////////////////////////////////////////////////
-
        #pragma omp for
         for (int i=0; i<mat_size; i++) {
             

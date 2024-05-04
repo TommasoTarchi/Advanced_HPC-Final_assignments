@@ -152,10 +152,6 @@ int main(int argc, char* argv[]){
     size_t total_length = (N_loc+2) * (N+2);
    #pragma acc enter data copyin(matrix[0:total_length], matrix_new[0:total_length])
 
-#ifdef TIME
-    t3 = MPI_Wtime();
-#endif
-
     // define variables for send-receive (using MPI_PROC_NULL 
     // as dummy destination-source)
     int destsource_up = my_rank - 1;
@@ -170,11 +166,6 @@ int main(int argc, char* argv[]){
         destsource_down = MPI_PROC_NULL;
 	    tag_down = -1;  // arbitrary
     }
-
-#ifdef TIME
-    t4 = MPI_Wtime();
-    t_comm += t4 - t3;
-#endif
 
     // start algorithm
     for (it=0; it<iterations; ++it) {

@@ -71,14 +71,8 @@ int main(int argc, char** argv) {
         N_loc = N_loc_long;
     else
         N_loc = N_loc_short;
-    
-#ifdef TIME
-    t3 = MPI_Wtime();
-#endif
 
     // define array to store sizes of blocks to be received
-    //
-    // (actually part of parallel communication process)
     int* counts_recv = (int*) malloc(n_procs * sizeof(int));
     for (int count=0; count<N_rest; count++)
         counts_recv[count] = N_loc_long*N_loc_long;
@@ -90,8 +84,6 @@ int main(int argc, char** argv) {
     }
 
     // define array with positions of blocks to be received
-    //
-    // (still part of parallel communication process)
     int* displacements = (int*) malloc(n_procs * sizeof(int));
     displacements[0] = 0;
     int while_count = 1;
@@ -99,11 +91,6 @@ int main(int argc, char** argv) {
         displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
         while_count++;
     }
-
-#ifdef TIME
-        t4 = MPI_Wtime();
-        t_comm += t4 - t3;
-#endif
 
 #ifdef TIME
     t1 = MPI_Wtime();
@@ -127,10 +114,6 @@ int main(int argc, char** argv) {
     int n_threads = random_mat(A, N_loc*N, my_seed, my_rank);
     my_seed += (unsigned int) n_procs * (unsigned int) n_threads;
     random_mat(B, N_loc*N, my_seed, my_rank);
-
-#ifdef TIME
-    t2 = MPI_Wtime();
-#endif
     
     // allocate needed local matrices on device and copy data
     double* A_dev;
@@ -138,6 +121,10 @@ int main(int argc, char** argv) {
     cudaMalloc((void**) &A_dev, N_loc * N * sizeof(double));
     cudaMemcpy(A_dev, A, N_loc * N * sizeof(double), cudaMemcpyHostToDevice);
     cudaMalloc((void**) &C_dev, N_loc * N * sizeof(double));
+
+#ifdef TIME
+    t2 = MPI_Wtime();
+#endif
 
     // for testing correctness of matmul
 #ifdef TEST

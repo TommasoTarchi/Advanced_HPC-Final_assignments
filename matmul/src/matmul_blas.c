@@ -61,14 +61,8 @@ int main(int argc, char** argv) {
         N_loc = N_loc_long;
     else
         N_loc = N_loc_short;
-    
-#ifdef TIME
-    t3 = MPI_Wtime();
-#endif
 
     // define array to store sizes pf blocks to be received
-    //
-    // (actually part of parallel communication process)
     int* counts_recv = (int*) malloc(n_procs * sizeof(int));
     for (int count=0; count<N_rest; count++)
         counts_recv[count] = N_loc_long*N_loc_long;
@@ -80,8 +74,6 @@ int main(int argc, char** argv) {
     }
 
     // define array with positions of blocks to be received
-    //
-    // (still part of parallel communication process)
     int* displacements = (int*) malloc(n_procs * sizeof(int));
     displacements[0] = 0;
     int while_count = 1;
@@ -91,18 +83,14 @@ int main(int argc, char** argv) {
     }
 
 #ifdef TIME
-        t4 = MPI_Wtime();
-        t_comm += t4 - t3;
-#endif
-
-#ifdef TIME
     t1 = MPI_Wtime();
 #endif
-
+    
     // allocate local matrices
     double* A = (double*) malloc(N_loc * N * sizeof(double));
     double* B = (double*) malloc(N_loc * N * sizeof(double));
     double* C = (double*) malloc(N_loc * N * sizeof(double));
+
 
     // compute global seed and broadcast to all processes
     unsigned int my_seed;

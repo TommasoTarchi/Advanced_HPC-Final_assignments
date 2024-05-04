@@ -60,13 +60,7 @@ int main(int argc, char** argv) {
     else
         N_loc = N_loc_short;
     
-#ifdef TIME
-    t3 = MPI_Wtime();
-#endif
-
     // define array to store sizes of blocks to be received
-    //
-    // (actually part of parallel communication process)
     int* counts_recv = (int*) malloc(n_procs * sizeof(int));
     for (int count=0; count<N_rest; count++)
         counts_recv[count] = N_loc_long*N_loc_long;
@@ -78,8 +72,6 @@ int main(int argc, char** argv) {
     }
 
     // define array with positions of blocks to be received
-    //
-    // (still part of parallel communication process)
     int* displacements = (int*) malloc(n_procs * sizeof(int));
     displacements[0] = 0;
     int while_count = 1;
@@ -87,11 +79,6 @@ int main(int argc, char** argv) {
         displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
         while_count++;
     }
-
-#ifdef TIME
-        t4 = MPI_Wtime();
-        t_comm += t4 - t3;
-#endif
 
 #ifdef TIME
     t1 = MPI_Wtime();
@@ -256,28 +243,6 @@ int main(int argc, char** argv) {
         char csv_name[] = "profiling/times_simple.csv";
         save_time(times, csv_name, n_procs);
     }
-
-    //if (my_rank == 0) {
-
-        // compute average times
-      //  double* total_times;
-        //total_times = (double*) malloc(3 * sizeof(double));
-//        total_times[0] = 0;
-  //      total_times[1] = 0;
-    //    total_times[2] = 0;
-      //  for (int count=0; count<n_procs; count++) {
-        //    total_times[0] += times[3 * count] / (double) n_procs;
-          //  total_times[1] += times[1 + 3 * count] / (double) n_procs;
-            //total_times[2] += times[2 + 3 * count] / (double) n_procs;
-        //}
-
-        // print times
-//        FILE* file = fopen("profiling/times_simple.csv", "a");
-  //      fprintf(file, "%f,%f,%f\n", total_times[0], total_times[1], total_times[2]);
-    //    fclose(file);
-
-      //  free(total_times);
-    //}
 
     free(times);
 #endif
