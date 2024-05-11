@@ -24,6 +24,7 @@ This repo contains:
     - `functions.h`: header file
     - `jacobi.c`: parallel MPI C code for Jacobi accelerated with OpenACC (OpenMP is used to
       further parallelize system initialization on host)
+    - `jacobi_aware.c`: as above but with CUDA-aware MPI communications
   - `job.sh`: batch file to run the scaling on Leonardo
 - `matmul/`:
   - `batch_scripts/`: directory containing batch files to run the scaling on Leonardo
@@ -32,9 +33,10 @@ This repo contains:
     - `functions.c`: functions for parallel matmul (function for initialization of matrices is
       further parallelized using OpenMP)
     - `functions.h`: header file
-    - `matmul_blas.c`: parallel MPI C code for matmul using multiplication implemented "by hand"
-    - `matmul_cublas.c`: parallel MPI C code for matmul using **BLAS**
-    - `matmul_simple.c`: parallel MPI CUDA code for matmul using **cuBLAS**
+    - `matmul_simple.c`: parallel MPI C code for matmul using multiplication implemented "by hand"
+    - `matmul_blas.c`: parallel MPI C code for matmul using **BLAS**
+    - `matmul_cublas.c`: parallel MPI CUDA code for matmul using **cuBLAS**
+    - `matmul_cublas_aware.c`: as above but with CUDA-aware MPI communications
   - `test_matmul/`: directory containing dumped matrices and code to test matmul correctness
 - `Report.pdf`: brief report about the assignment with more detailed description of algorithm and
   its implementation
