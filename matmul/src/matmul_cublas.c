@@ -92,14 +92,14 @@ int main(int argc, char** argv) {
         while_count++;
     }
 
-#ifdef TIME
-    t1 = MPI_Wtime();
-#endif
-
     // allocate local matrices
     double* A = (double*) malloc(N_loc * N * sizeof(double));
     double* B = (double*) malloc(N_loc * N * sizeof(double));
     double* C = (double*) malloc(N_loc * N * sizeof(double));
+
+#ifdef TIME
+    t1 = MPI_Wtime();
+#endif
 
     // compute global seed and broadcast to all processes
     unsigned int my_seed;
@@ -114,17 +114,17 @@ int main(int argc, char** argv) {
     int n_threads = random_mat(A, N_loc*N, my_seed, my_rank);
     my_seed += (unsigned int) n_procs * (unsigned int) n_threads;
     random_mat(B, N_loc*N, my_seed, my_rank);
-    
+
+#ifdef TIME
+    t2 = MPI_Wtime();
+#endif
+
     // allocate needed local matrices on device and copy data
     double* A_dev;
     double* C_dev;
     cudaMalloc((void**) &A_dev, N_loc * N * sizeof(double));
     cudaMemcpy(A_dev, A, N_loc * N * sizeof(double), cudaMemcpyHostToDevice);
     cudaMalloc((void**) &C_dev, N_loc * N * sizeof(double));
-
-#ifdef TIME
-    t2 = MPI_Wtime();
-#endif
 
     // for testing correctness of matmul
 #ifdef TEST
@@ -183,18 +183,11 @@ int main(int argc, char** argv) {
             }
        }
 
-        // allocate auxiliary matrices on device
-        double* B_col_dev;
-        cudaMalloc((void**) &B_col_dev, N * N_cols * sizeof(double));
-
         // create block to send to other processes
         create_block(B, B_block, N_rows, N_cols, offset, N);
 
         // send and receive blocks
         MPI_Allgatherv(B_block, N_rows*N_cols, MPI_DOUBLE, B_col, counts_recv, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
-
-        // copy gathered data to device
-        cudaMemcpy(B_col_dev, B_col, N*N_cols*sizeof(double), cudaMemcpyHostToDevice);
 
 #ifdef TIME
         t4 = MPI_Wtime();
@@ -204,6 +197,11 @@ int main(int argc, char** argv) {
 #ifdef TIME
         t5 = MPI_Wtime();
 #endif
+
+        // allocate auxiliary matrices on device and copy gathered data
+        double* B_col_dev;
+        cudaMalloc((void**) &B_col_dev, N * N_cols * sizeof(double));
+        cudaMemcpy(B_col_dev, B_col, N*N_cols*sizeof(double), cudaMemcpyHostToDevice);
 
         // matmul
         // (since cublasDgemm() works in col-major order, to avoid transpositions we 
@@ -223,8 +221,17 @@ int main(int argc, char** argv) {
         cudaFree(B_col_dev);
     }
 
+#ifdef TIME
+        t5 = MPI_Wtime();
+#endif
+
     // copy accumulated computation from device to host
     cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
+
+#ifdef TIME
+        t6 = MPI_Wtime();
+        t_comp += t6 - t5;
+#endif
     
     // for testing correctness of matmul
 #ifdef TEST

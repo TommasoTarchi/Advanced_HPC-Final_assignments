@@ -81,16 +81,15 @@ int main(int argc, char** argv) {
         displacements[while_count] = displacements[while_count-1] + counts_recv[while_count-1];
         while_count++;
     }
-
-#ifdef TIME
-    t1 = MPI_Wtime();
-#endif
     
     // allocate local matrices
     double* A = (double*) malloc(N_loc * N * sizeof(double));
     double* B = (double*) malloc(N_loc * N * sizeof(double));
     double* C = (double*) malloc(N_loc * N * sizeof(double));
 
+#ifdef TIME
+    t1 = MPI_Wtime();
+#endif
 
     // compute global seed and broadcast to all processes
     unsigned int my_seed;

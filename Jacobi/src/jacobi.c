@@ -182,14 +182,14 @@ int main(int argc, char* argv[]){
             MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
             MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
 
+            // update bordering rows with received data on device
+            size_t start = (N_loc+1) * (N+2);
+           #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
+
 #ifdef TIME
             t4 = MPI_Wtime();
             t_comm += t4 - t3;
 #endif
-
-            // update bordering rows with received data on device
-            size_t start = (N_loc+1) * (N+2);
-           #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
 
 #ifdef TIME
             t5 = MPI_Wtime();
@@ -226,9 +226,19 @@ int main(int argc, char* argv[]){
             t_comp += t6 - t5;
 #endif
 
+#ifdef TIME
+            t3 = MPI_Wtime();
+#endif
+
             // update rows to be sent to other processes
             start = N_loc * (N+2);
            #pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
+
+#ifdef TIME
+            t4 = MPI_Wtime();
+            t_comm += t4 - t3;
+#endif
+
         }
     }
     
