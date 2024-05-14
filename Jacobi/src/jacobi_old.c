@@ -150,6 +150,10 @@ int main(int argc, char* argv[]){
     t2 = MPI_Wtime();
 #endif
 
+    // copy matrix to device
+    size_t total_length = (N_loc+2) * (N+2);
+   #pragma acc enter data copyin(matrix[0:total_length], matrix_new[0:total_length])
+
     // define variables for send-receive (using MPI_PROC_NULL 
     // as dummy destination-source)
     int destsource_up = my_rank - 1;
@@ -165,72 +169,75 @@ int main(int argc, char* argv[]){
 	    tag_down = -1;  // arbitrary
     }
 
-    // copy matrix to device
-    size_t total_length = (N_loc+2) * (N+2);
-   #pragma acc data copy(matrix[0:total_length]) copyin(matrix_new[0:total_length])
-    {
-
-        // start algorithm
-        for (it=0; it<iterations; ++it) {
+    // start algorithm
+    for (it=0; it<iterations; ++it) {
 
 #ifdef TIME
-            t3 = MPI_Wtime();
+        t3 = MPI_Wtime();
 #endif
     
-            // send and receive bordering data (backward first and 
-            // forward then)
-            MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
-            MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
+        // send and receive bordering data (backward first and 
+        // forward then)
+        MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
+	    MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
 
 #ifdef TIME
-            t4 = MPI_Wtime();
-            t_comm += t4 - t3;
+        t4 = MPI_Wtime();
+        t_comm += t4 - t3;
 #endif
 
-            // update bordering rows with received data on device
-            size_t start = (N_loc+1) * (N+2);
-           #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
+        // update bordering rows with received data on device
+	    size_t start = (N_loc+1) * (N+2);
+       #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
 
 #ifdef TIME
-            t5 = MPI_Wtime();
+        t5 = MPI_Wtime();
 #endif
 
-            // update system's state on device
-           #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
-            for (i=1; i<=N_loc; ++i)
-                for (j=1; j<=N; ++j)
-                    matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
-                    ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
-                      matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+        // update system's state on device
+       #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
+        for (i=1; i<=N_loc; ++i)
+            for (j=1; j<=N; ++j)
+                matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
+                ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
+                  matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
+                  matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
+                  matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
 
-            // switch pointers (if not using OpenACC) or copy data
-            // between matrices (if using OpenACC)
-            //
-            // NOTICE: in OpenACC pointer swapping is not available
+        // switch pointers (if not using OpenACC) or copy data
+        // between matrices (if using OpenACC)
+        //
+        // NOTICE: in OpenACC pointer swapping is not available
 #ifdef OPENACC
-           #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent collapse(2)
-            for (i=1; i<N_loc+1; i++)
-                for (j=1; j<N+1; j++)
-                    matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j]
+       //#pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent
+        //for (i=0; i<(N_loc+2)*(N+2); i++) {
+        //    double tmp = matrix[i];
+        //    matrix[i] = matrix_new[i];
+        //    matrix_new[i] = tmp;
+        //}
+       #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent collapse(2)
+        for (i=1; i<N_loc+1; i++)
+            for (j=1; j<N+1; j++)
+                matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j]
 #else
-            double* tmp;
-            tmp = matrix;
-            matrix = matrix_new;
-            matrix_new = tmp;
+        double* tmp;
+        tmp = matrix;
+        matrix = matrix_new;
+        matrix_new = tmp;
 #endif
 
 #ifdef TIME
-            t6 = MPI_Wtime();
-            t_comp += t6 - t5;
+        t6 = MPI_Wtime();
+        t_comp += t6 - t5;
 #endif
 
-            // update rows to be sent to other processes
-            start = N_loc * (N+2);
-           #pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
-        }
+        // update rows to be sent to other processes
+        start = N_loc * (N+2);
+       #pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
     }
+
+    // copy final matrix back to host
+   #pragma acc exit data copyout(matrix[0:total_length]) delete(matrix_new[0:total_length])
     
     // print element for checking
     if (((offset / N) <= row_peek) && (row_peek < (offset / N + N_loc))) {

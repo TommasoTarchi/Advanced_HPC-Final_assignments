@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=matmul_simple
+#SBATCH --job-name=Jacobi
 #SBATCH --nodes=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=1

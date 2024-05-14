@@ -29,15 +29,15 @@ int random_mat(double* mat, int mat_size, unsigned int seed, int rank) {
     {
 
 #ifdef OPENMP
-	// get number of threads on process
-	n_threads = omp_get_num_threads();
+        // get number of threads on process
+        n_threads = omp_get_num_threads();
 
-	// get each thread's id (=0 if openMP is not enabled)
-	my_thread_id = omp_get_thread_num();
+        // get each thread's id (=0 if openMP is not enabled)
+        my_thread_id = omp_get_thread_num();
 #endif
         
-	// setting a different seed for each thread
-	struct drand48_data rand_gen;
+        // setting a different seed for each thread
+        struct drand48_data rand_gen;
         srand48_r(seed+(unsigned int)rank*(unsigned int)n_threads+(unsigned int)my_thread_id, &rand_gen);
 
        #pragma omp for
@@ -49,7 +49,7 @@ int random_mat(double* mat, int mat_size, unsigned int seed, int rank) {
 
             // assigning random value to element in matrix
             mat[i] = random_number * factor;
-	}
+	    }
     }
 
     return n_threads;

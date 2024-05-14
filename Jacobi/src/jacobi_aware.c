@@ -12,7 +12,7 @@
  *
  * base serial code is taken from prof. Ivan Girotto at ICTP
  *
- * MPI communications are NOT CUDA-aware
+ * MPI communications are CUDA-aware
  *
  * */
 
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]){
         destsource_down = MPI_PROC_NULL;
 	    tag_down = -1;  // arbitrary
     }
-
+    
     // copy matrix to device
     size_t total_length = (N_loc+2) * (N+2);
    #pragma acc data copy(matrix[0:total_length]) copyin(matrix_new[0:total_length])
@@ -178,18 +178,22 @@ int main(int argc, char* argv[]){
 #endif
     
             // send and receive bordering data (backward first and 
-            // forward then)
-            MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
-            MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
+            // forward then) from device to device directly
+            //
+            // (the host_data clause specifies that, when executing
+            // the code, the host has to use device pointers, and
+            // the use_device clause specifies which pointers should
+            // be "exposed" to host)
+           #pragma acc host_data use_device(matrix)
+            {
+                MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
+                MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
+            }
 
 #ifdef TIME
             t4 = MPI_Wtime();
             t_comm += t4 - t3;
 #endif
-
-            // update bordering rows with received data on device
-            size_t start = (N_loc+1) * (N+2);
-           #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
 
 #ifdef TIME
             t5 = MPI_Wtime();
@@ -226,9 +230,6 @@ int main(int argc, char* argv[]){
             t_comp += t6 - t5;
 #endif
 
-            // update rows to be sent to other processes
-            start = N_loc * (N+2);
-           #pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
         }
     }
     
