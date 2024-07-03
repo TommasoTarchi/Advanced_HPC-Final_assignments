@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=matmul_blas
-#SBATCH --nodes=16
+#SBATCH --nodes=32
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=11
@@ -14,6 +14,9 @@ mat_size=1200
 
 # set number of openMP threads per process
 export OMP_NUM_THREADS=10
+
+# set number of BLAS threads
+export OPENBLAS_NUM_THREADS=10
 
 # set openMP binding policy (each thread on a different core)
 export OMP_PROC_BIND=close
@@ -34,7 +37,7 @@ echo "#n_procs,init,communication,computation" > profiling/times_blas.csv
 srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c -lopenblas src/matmul_blas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -DOPENMP -o matmul_blas.x
 
 # run program
-for ((nprocs = 1; nprocs <= 16; nprocs *= 2))
+for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
     echo -n "$nprocs," >> profiling/times_blas.csv
     mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./matmul_blas.x

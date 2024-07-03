@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # get csv file name
 parser = argparse.ArgumentParser()
-parser.add_argument('matmul', type=str, choices=("simple", "blas", "cublas"))
+parser.add_argument('--matmul', type=str, choices=("simple", "blas", "cublas"))
 args = parser.parse_args()
 matmul = args.matmul
 csv_file = ""
@@ -43,4 +43,4 @@ ax.legend()
 
 plt.xticks()
 plt.tight_layout()
-plt.show()
+plt.savefig('profiling.png')

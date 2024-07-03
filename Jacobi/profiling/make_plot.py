@@ -32,4 +32,4 @@ ax.legend()
 
 plt.xticks()
 plt.tight_layout()
-plt.show()
+plt.savefig('profiling.png')

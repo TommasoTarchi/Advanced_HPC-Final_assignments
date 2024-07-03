@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=Jacobi
-#SBATCH --nodes=16
+#SBATCH --nodes=32
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=11
@@ -34,7 +34,7 @@ srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIM
 #srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi.c -o jacobi.x  # compile without openACC
 
 # run program
-for ((nprocs = 1; nprocs <= 16; nprocs *= 2))
+for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
 	echo -n "$nprocs," >> profiling/times.csv
 	mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./jacobi.x $mat_size 10 11 4 
