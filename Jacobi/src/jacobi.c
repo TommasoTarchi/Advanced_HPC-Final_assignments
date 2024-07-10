@@ -195,6 +195,7 @@ int main(int argc, char* argv[]){
             t5 = MPI_Wtime();
 #endif
 
+#ifdef OPENACC
             // update system's state on device
            #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
             for (i=1; i<=N_loc; ++i)
@@ -204,6 +205,17 @@ int main(int argc, char* argv[]){
                       matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
                       matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
                       matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+#else
+            // update system's state on host
+           #pragma omp parallel for collapse(2)
+            for (i=1; i<=N_loc; ++i)
+                for (j=1; j<=N; ++j)
+                    matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
+                    ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
+                      matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
+                      matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
+                      matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+#endif
 
             // switch pointers (if not using OpenACC) or copy data
             // between matrices (if using OpenACC)
