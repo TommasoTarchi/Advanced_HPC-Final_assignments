@@ -1,8 +1,18 @@
 /*
+ * performs Jacobi evolution of a grid of cells in parallel
  *
+ * compile with -DTIME for profiling: times for matrix 
+ * initialization, communications and computations will be 
+ * printed to CSV file called times_MPI-RMA.csv in profiling/
+ * folder
  *
+ * compile with -fopenmp -DOPENMP for further parallelization
+ * of grid initialization and evolution using openMP
  *
+ * base serial code is taken from prof. Ivan Girotto at ICTP
  *
+ * MPI communications are performed using the Remote Memory
+ * Access paradigm
  *
  * */
 
@@ -270,7 +280,7 @@ int main(int argc, char* argv[]){
     MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
-        char csv_name[] = "profiling/times.csv";
+        char csv_name[] = "profiling/times_MPI-RMA.csv";
         save_time(times, csv_name, n_procs);
     }
 

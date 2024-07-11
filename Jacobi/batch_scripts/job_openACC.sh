@@ -28,21 +28,17 @@ module load openmpi/4.1.6--nvhpc--23.11
 cd ../
 
 # create datafile
-#echo "#n_procs,init,communication,computation" > profiling/times.csv
-echo "#n_procs,init,communication,computation" > profiling/times_aware.csv
+echo "#n_procs,init,communication,computation" > profiling/times.csv
 
 # compile program
-srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIME src/functions.c src/jacobi_aware.c -o jacobi.x
+srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIME src/functions.c src/jacobi.c -o jacobi.x
 
 # run program
 for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
-	echo -n "$nprocs," >> profiling/times_aware.csv
+	echo -n "$nprocs," >> profiling/times.csv
 	mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./jacobi.x $mat_size 10 11 4 
 done
-
-# rename CSV
-srun -n 1 -N 1 mv times.csv times_openACC.csv
 
 # remove executable
 srun -n 1 -N 1 rm jacobi.x

@@ -38,9 +38,6 @@ do
 	mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./jacobi.x $mat_size 10 11 4 
 done
 
-# rename CSV
-srun -n 1 -N 1 mv times.csv times_openMP.csv
-
 # remove executable
 srun -n 1 -N 1 rm jacobi.x
 
