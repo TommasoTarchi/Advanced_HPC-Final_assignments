@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 
 # get csv file name
 parser = argparse.ArgumentParser()
-parser.add_argument('--matmul', type=str, choices=("simple", "blas", "cublas"))
+parser.add_argument('--mode', type=str, choices=("simple", "blas", "cublas"))
 args = parser.parse_args()
-matmul = args.matmul
+matmul = args.mode
 csv_file = ""
 profiling_name = ""
 if matmul == "simple":

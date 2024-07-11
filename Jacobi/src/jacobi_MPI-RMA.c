@@ -193,16 +193,33 @@ int main(int argc, char* argv[]){
         t5 = MPI_Wtime();
 #endif
 
-        // update system's state
-        // AGGIUSTARE
+        // update first row
+       #pragma omp parallel for
+        for (j=1; j<N+1; j++)
+            matrix_new[ j ] = ( 0.25 ) *
+            ( boundaries[ j ] +
+              matrix[ j - 1 ] +
+              matrix[ j + 1 ] +
+              matrix[ N + 2 + j ] );
+
+        // update interal cells
        #pragma omp parallel for collapse(2)
-        for (i=1; i<=N_loc; ++i)
-            for (j=1; j<=N; ++j)
+        for (i=1; i<N_loc-1; ++i)
+            for (j=1; j<N+1; ++j)
                 matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
                 ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
                   matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
                   matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
                   matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+
+        // update last row
+       #pragma omp parallel for
+        for (j=1; j<N+1; j++)
+            matrix_new[ ( N_loc - 1 ) * ( N + 2) + j] = ( 0.25 ) *
+            ( matrix[ ( N_loc - 2 ) * ( N + 2 ) + j ] +
+              matrix[ ( N_loc - 1 ) * ( N + 2) + ( j - 1 ) ] +
+              matrix[ ( N_loc - 1 ) * ( N + 2) + ( j + 1 ) ] +
+              boundaries[ ( N + 2 ) * j ] );
 
         // switch pointers to matrices
         double* tmp, tmp_bound;
@@ -221,37 +238,55 @@ int main(int argc, char* argv[]){
     }
 
     // print element for checking
-    // AGGIUSTARE
     if (((offset / N) <= row_peek) && (row_peek < (offset / N + N_loc))) {
 	
         size_t true_row_peek = row_peek;
         if (my_rank)
             true_row_peek = row_peek % (offset / N);
         
-        printf("\nmatrix[%zu,%zu] = %f\n", row_peek, col_peek, matrix[(true_row_peek + 1) * (N + 2) + (col_peek + 1)]);
+        printf("\nmatrix[%zu,%zu] = %f\n", row_peek, col_peek, matrix[true_row_peek * (N + 2) + col_peek + 1]);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
     
     // save data for plot (process 0 gathers data and prints them to file)
-    // AGGIUSTARE
+    // 
+    // communications are not in RMA here (wouldn't be a big gain in efficiency)
     if (my_rank == 0) {
 
-        save_gnuplot_parallel(matrix, N_loc, N, my_rank, offset/N, n_procs);
+        // print process 0's data
+        save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc, N, my_rank, offset/N, n_procs);
         
         size_t col_offset_recv = N_loc;
-        for (int count=1; count<n_procs; count++) {
+        size_t N_loc_recv;
+        for (int count=1; count<n_procs-1; count++) {
 
-            size_t N_loc_recv = N / n_procs + (count < N_rest);
-            MPI_Recv(matrix, (N_loc_recv+2)*(N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
-            save_gnuplot_parallel(matrix, N_loc_recv, N, count, col_offset_recv, n_procs);
+            N_loc_recv = N / n_procs + (count < N_rest);
+
+            // receive central processes' data and print them
+            MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
+            save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc_recv, N, count, col_offset_recv, n_procs);
 
             col_offset_recv += N_loc_recv;
         }
+        
+        N_loc_recv = N / n_procs + (n_procs-1 < N_rest);
+
+        // receive last process's data and print them
+        MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
+        MPI_Recv(&boundaries[N+2], N + 2, MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
+        save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc_recv, N, n_procs-1, col_offset_recv, n_procs);
     
+    } else if (my_rank < n_procs-1) {
+
+        // send data from central processes
+        MPI_Send(matrix, N_loc * (N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+
     } else {
 
-        MPI_Send(matrix, (N_loc+2)*(N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+        // send data from last process
+        MPI_Send(matrix, N_loc * (N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+        MPI_Send(&boundaries[N+2], N + 2, MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
     }
 
     free(matrix);
@@ -264,7 +299,6 @@ int main(int argc, char* argv[]){
     MPI_Group_free(&world_group);
 
     // gather measured times and print them
-    // AGGIUSTARE
 #ifdef TIME
     double* times;
 

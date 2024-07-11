@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 
 # get csv file name
 parser = argparse.ArgumentParser()
-parser.add_argument('--jacobi', type=str, choices=("openMP", "openACC", "aware", "MPI-RMA"))
+parser.add_argument('--mode', type=str, choices=("openMP", "openACC", "aware", "MPI-RMA"))
 args = parser.parse_args()
-jacobi = args.jacobi
+jacobi = args.mode
 csv_file = ""
 profiling_name = ""
 if jacobi == "openMP":

@@ -203,8 +203,8 @@ int main(int argc, char* argv[]){
 #ifdef OPENACC
             // update system's state on device
            #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
-            for (i=1; i<=N_loc; ++i)
-                for (j=1; j<=N; ++j)
+            for (i=1; i<N_loc+1; ++i)
+                for (j=1; j<N+1; ++j)
                     matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
                     ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
                       matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
@@ -213,8 +213,8 @@ int main(int argc, char* argv[]){
 #else
             // update system's state on host
            #pragma omp parallel for collapse(2)
-            for (i=1; i<=N_loc; ++i)
-                for (j=1; j<=N; ++j)
+            for (i=1; i<N_loc+1; ++i)
+                for (j=1; j<N+1; ++j)
                     matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
                     ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
                       matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
@@ -261,13 +261,16 @@ int main(int argc, char* argv[]){
     // save data for plot (process 0 gathers data and prints them to file)
     if (my_rank == 0) {
 
+        // print process 0's data
         save_gnuplot_parallel(matrix, N_loc, N, my_rank, offset/N, n_procs);
         
         size_t col_offset_recv = N_loc;
         for (int count=1; count<n_procs; count++) {
 
             size_t N_loc_recv = N / n_procs + (count < N_rest);
-            MPI_Recv(matrix, (N_loc_recv+2)*(N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
+
+            // receive data from other processes and print them
+            MPI_Recv(matrix, (N_loc_recv+2) * (N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
             save_gnuplot_parallel(matrix, N_loc_recv, N, count, col_offset_recv, n_procs);
 
             col_offset_recv += N_loc_recv;
@@ -275,7 +278,8 @@ int main(int argc, char* argv[]){
     
     } else {
 
-        MPI_Send(matrix, (N_loc+2)*(N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+        // send data from other processes
+        MPI_Send(matrix, (N_loc+2) * (N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
     }
 
     free(matrix);
