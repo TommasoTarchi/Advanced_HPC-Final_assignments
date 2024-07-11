@@ -5,7 +5,8 @@
  *
  * compile with -DTIME for profiling: times for matrix 
  * initialization, communications and computations will be 
- * printed to CSV file called times.csv in profiling/ folder
+ * printed to CSV file called times_aware.csv in profiling/
+ * folder
  *
  * compile with -fopenmp -DOPENMP for further parallelization 
  * of grid initialization using openMP
@@ -217,7 +218,7 @@ int main(int argc, char* argv[]){
            #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent collapse(2)
             for (i=1; i<N_loc+1; i++)
                 for (j=1; j<N+1; j++)
-                    matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j]
+                    matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j];
 #else
             double* tmp;
             tmp = matrix;
@@ -284,7 +285,7 @@ int main(int argc, char* argv[]){
     MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
-        char csv_name[] = "profiling/times.csv";
+        char csv_name[] = "profiling/times_aware.csv";
         save_time(times, csv_name, n_procs);
     }
 

@@ -213,7 +213,7 @@ int main(int argc, char* argv[]){
            #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent collapse(2)
             for (i=1; i<N_loc+1; i++)
                 for (j=1; j<N+1; j++)
-                    matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j]
+                    matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j];
 #else
             double* tmp;
             tmp = matrix;
