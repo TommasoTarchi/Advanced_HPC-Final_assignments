@@ -2,7 +2,6 @@
 #SBATCH --job-name=Jacobi
 #SBATCH --nodes=32
 #SBATCH --ntasks-per-node=1
-#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=11
 #SBATCH --partition=boost_usr_prod
 #SBATCH -A ict24_dssc_gpu
@@ -21,17 +20,16 @@ export OMP_PLACES=cores
 
 
 # load modules
-module load cuda/
-module load openmpi/4.1.6--nvhpc--23.11
-#module load openmpi/4.1.6--gcc--12.2.0
+module load openmpi/4.1.6--gcc--12.2.0
 
+
+cd ../
 
 # create datafile
 echo "#n_procs,init,communication,computation" > profiling/times.csv
 
 # compile program
-srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIME src/functions.c src/jacobi.c -o jacobi.x
-#srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi.c -o jacobi.x  # compile without openACC
+srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi.c -o jacobi.x
 
 # run program
 for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
@@ -40,5 +38,10 @@ do
 	mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./jacobi.x $mat_size 10 11 4 
 done
 
+# rename CSV
+srun -n 1 -N 1 mv times.csv times_openMP.csv
+
 # remove executable
 srun -n 1 -N 1 rm jacobi.x
+
+cd batch_scripts/ || exit

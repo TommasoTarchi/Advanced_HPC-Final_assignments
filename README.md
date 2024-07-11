@@ -17,6 +17,7 @@ All codes were run on *Leonardo*, cluster hosted at *CINECA* (Bologna, Italy).
 This repo contains:
 - this README file
 - `Jacobi/`: directory containing all codes and results related to the CUDA assignment:
+  - `batch_scripts/`: directory containing batch files to run the scaling on Leonardo
   - `profiling/`: directory containing profiling data and python script to plot them
   - `plot/`: directory containing final state of the system and scripts to plot it using gnuplot
   - `src/`: directory containing source code for parallel Jacobi, in particular:
@@ -25,7 +26,7 @@ This repo contains:
     - `jacobi.c`: parallel MPI C code for Jacobi accelerated with OpenACC (OpenMP is used to
       further parallelize system initialization on host)
     - `jacobi_aware.c`: same as above but with CUDA-aware MPI communications
-  - `job.sh`: batch file to run the scaling on Leonardo
+    - `jacobi_MPI-RMA.c`: parallel C code for Jacobi with openMP and *Remote Memory Access* MPI
 - `matmul/`:
   - `batch_scripts/`: directory containing batch files to run the scaling on Leonardo
   - `profiling/`: directory containing profiling data and python script to plot them

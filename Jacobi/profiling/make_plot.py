@@ -1,15 +1,33 @@
+import argparse
 import csv
 import matplotlib.pyplot as plt
 
 
-csv_file = "times.csv"
-
+# get csv file name
+parser = argparse.ArgumentParser()
+parser.add_argument('--jacobi', type=str, choices=("openMP", "openACC", "aware", "MPI-RMA"))
+args = parser.parse_args()
+jacobi = args.jacobi
+csv_file = ""
+profiling_name = ""
+if jacobi == "openMP":
+    csv_file = "times_openMP.csv"
+    profiling_name = "profiling_openMP.csv"
+elif jacobi == "openACC":
+    csv_file = "times_openACC.csv"
+    profiling_name = "profiling_openACC.csv"
+elif jacobi == "aware":
+    csv_file = "times_aware.csv"
+    profiling_name = "profiling_aware.csv"
+elif jacobi == "MPI-RMA":
+    csv_file = "times_MPI-RMA.csv"
+    profiling_name = "profiling_MPI-RMA.csv"
 
 with open(csv_file, 'r') as file:
     reader = csv.reader(file)
     data = list(reader)
 
-data = data[1:]
+data = data[1:]  # skip header
 
 labels = [row[0] for row in data]
 values = [[float(row[i]) for i in range(1, 4)] for row in data]
@@ -27,9 +45,9 @@ for i, section_label in enumerate(["initialization", "communication", "computati
 
 ax.set_xlabel('# nodes')
 ax.set_ylabel('time')
-ax.set_title('Profiling of parallel Jacobi')
+#ax.set_title('')
 ax.legend()
 
 plt.xticks()
 plt.tight_layout()
-plt.savefig('profiling.png')
+plt.savefig(profiling_name)
