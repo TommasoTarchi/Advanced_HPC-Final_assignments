@@ -5,16 +5,20 @@ import matplotlib.pyplot as plt
 
 # get csv file name
 parser = argparse.ArgumentParser()
-parser.add_argument('matmul', type=str, choices=("simple", "blas", "cublas"))
+parser.add_argument('--matmul', type=str, choices=("simple", "blas", "cublas"))
 args = parser.parse_args()
 matmul = args.matmul
 csv_file = ""
+profiling_name = ""
 if matmul == "simple":
     csv_file = "times_simple.csv"
+    profiling_name = "profiling_simple.png"
 elif matmul == "blas":
     csv_file = "times_blas.csv"
+    profiling_name = "profiling_blas.png"
 elif matmul == "cublas":
     csv_file = "times_cublas.csv"
+    profiling_name = "profiling_cublas.png"
 
 with open(csv_file, 'r') as file:
     reader = csv.reader(file)
@@ -38,9 +42,9 @@ for i, section_label in enumerate(["initialization", "communication", "computati
 
 ax.set_xlabel('# nodes')
 ax.set_ylabel('time')
-ax.set_title('Profiling of parallel Jacobi')
+#ax.set_title('')
 ax.legend()
 
 plt.xticks()
 plt.tight_layout()
-plt.show()
+plt.savefig(profiling_name)

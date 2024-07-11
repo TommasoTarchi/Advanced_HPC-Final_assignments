@@ -1,18 +1,8 @@
 /*
- * performs Jacobi evolution of a grid of cells in parallel
  *
- * compile with -DOPENACC for GPU acceleration with OpenACC
  *
- * compile with -DTIME for profiling: times for matrix 
- * initialization, communications and computations will be 
- * printed to CSV file called times.csv in profiling/ folder
  *
- * compile with -fopenmp -DOPENMP for further parallelization 
- * of grid initialization using openMP
  *
- * base serial code is taken from prof. Ivan Girotto at ICTP
- *
- * MPI communications are NOT CUDA-aware
  *
  * */
 
@@ -22,7 +12,6 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <mpi.h>
-#include <openacc.h>
 #include "functions.h"
 #ifdef OPENMP
 #include <omp.h>
@@ -39,14 +28,8 @@ int main(int argc, char* argv[]){
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Status status;
 
-    // setting devices
-#ifdef OPENACC
-    int n_gpus = acc_get_num_devices(acc_device_nvidia);
-    int i_gpu = my_rank % n_gpus;
-    
-    acc_set_device_num(i_gpu, acc_device_nvidia);
-    acc_init(acc_device_nvidia);
-#endif
+    // init MPI window
+    MPI_Win win;
 
     // variables for timing
     //
@@ -60,8 +43,8 @@ int main(int argc, char* argv[]){
     // indexes for loops
     size_t i, j, it;
 
-    // initialize matrix
-    double *matrix, *matrix_new;
+    // initialize matrix and boundaries
+    double *matrix, *matrix_new, *boundaries, *boundaries_new;
 
     // define needed variables
     size_t N = 0, iterations = 0, row_peek = 0, col_peek = 0;
@@ -112,11 +95,17 @@ int main(int argc, char* argv[]){
     }
 
     // allocate local matrices
-    byte_dimension = sizeof(double) * (N_loc + 2) * (N + 2);
+    byte_dimension = sizeof(double) * N_loc * (N + 2);
     matrix = (double*) malloc(byte_dimension);
     matrix_new = (double*) malloc(byte_dimension);
     memset(matrix, 0, byte_dimension);
     memset(matrix_new, 0, byte_dimension);
+
+    // allocate boundaries ('boundaries' is allocated and assigned to a window)
+    MPI_Win_allocate(2 * (N + 2) * sizeof(double), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, boundaries, &win);
+    boundaries_new = (double*) malloc(2 * (N + 2) * sizeof(double));
+    memset(boundaries, 0, N + 2);
+    memset(boundaries_new, 0, N + 2);
 
 #ifdef TIME
     t1 = MPI_Wtime();
@@ -124,7 +113,7 @@ int main(int argc, char* argv[]){
 
     // fill initial values
    #pragma omp parallel for collapse(2)
-    for (i=1; i<=N_loc; ++i)
+    for (i=0; i<N_loc; ++i)
         for (j=1; j<=N; ++j) {
             matrix[(i * (N + 2)) + j] = 0.5;
             matrix_new[(i * (N + 2)) + j] = 0.5;
@@ -133,16 +122,16 @@ int main(int argc, char* argv[]){
     // set up borders
     double increment = 100.0 / (N + 1);
     double increment_start = increment * (offset / N);
-    for (i=1; i<=N_loc+1; ++i) {
+    for (i=0; i<N_loc; ++i) {
         
-	    matrix[i * (N + 2)] = increment_start + i * increment;
-        matrix_new[i * (N + 2)] = increment_start + i * increment;
+	    matrix[i * (N + 2)] = increment_start + (i + 1) * increment;
+        matrix_new[i * (N + 2)] = increment_start + (i + 1) * increment;
     }
     if (my_rank == n_procs-1) {
         
         for (i=1; i<=N+1; i++) {
-            matrix[((N_loc + 1) * (N + 2)) + (N + 1 - i)] = i * increment;
-            matrix_new[((N_loc + 1) * (N + 2)) + (N + 1 - i)] = i * increment;
+            boundaries[N + 2 + (N + 1 - i)] = i * increment;
+            boundaries_new[N + 2 + (N + 1 - i)] = i * increment;
         }
     }
 
@@ -150,111 +139,79 @@ int main(int argc, char* argv[]){
     t2 = MPI_Wtime();
 #endif
 
-    // define variables for send-receive (using MPI_PROC_NULL 
-    // as dummy destination-source)
-    int destsource_up = my_rank - 1;
-    int tag_up = my_rank - 1;
-    int destsource_down = my_rank + 1;
-    int tag_down = my_rank + 1;
-    if (my_rank == 0) {
-        destsource_up = MPI_PROC_NULL;
-	    tag_up = -1;  // arbitrary
+    // define destinations
+    int dest_up = my_rank - 1;
+    int dest_down = my_rank + 1;
+
+    // create group for RMA communications
+    MPI_Group world_group, neighbor_group;
+    MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+    int neighbors[2] = {dest_up, dest_down};
+    MPI_Group_incl(world_group, 2, neighbors, &neighbor_group);
+
+    // start algorithm
+    for (it=0; it<iterations; ++it) {
+
+#ifdef TIME
+        t3 = MPI_Wtime();
+#endif
+
+        // post exposure epoch
+        MPI_Win_post(neighbor_group, 0, win);
+
+        // start access epoch
+        MPI_Win_start(neighbor_group, 0, win);
+
+        // communicate boundaries
+        if (my_rank > 0)
+            MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, N + 2, N + 2, MPI_DOUBLE, win);
+        if (my_rank < n_procs - 1)
+            MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win);
+
+        // complete access epoch
+        MPI_Win_complete(win);
+
+        // wait for RMA operations to complete
+        MPI_Win_wait(win, MPI_STATUS_IGNORE);
+
+#ifdef TIME
+        t4 = MPI_Wtime();
+        t_comm += t4 - t3;
+#endif
+
+#ifdef TIME
+        t5 = MPI_Wtime();
+#endif
+
+        // update system's state
+        // AGGIUSTARE
+       #pragma omp parallel for collapse(2)
+        for (i=1; i<=N_loc; ++i)
+            for (j=1; j<=N; ++j)
+                matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
+                ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
+                  matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
+                  matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
+                  matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+
+        // switch pointers to matrices
+        double* tmp, tmp_bound;
+        tmp = matrix;
+        matrix = matrix_new;
+        matrix_new = tmp;
+        tmp_bound = boundaries;
+        boundaries = boundaries_new;
+        boundaries_new = tmp_bound;
+
+#ifdef TIME
+        t6 = MPI_Wtime();
+        t_comp += t6 - t5;
+#endif
+
     }
-    if (my_rank == n_procs-1) {
-        destsource_down = MPI_PROC_NULL;
-	    tag_down = -1;  // arbitrary
-    }
 
-    // copy matrix to device
-    size_t total_length = (N_loc+2) * (N+2);
-   #pragma acc data copy(matrix[0:total_length]) copyin(matrix_new[0:total_length])
-    {
-
-        // start algorithm
-        for (it=0; it<iterations; ++it) {
-
-#ifdef TIME
-            t3 = MPI_Wtime();
-#endif
-    
-            // send and receive bordering data (backward first and 
-            // forward then)
-            MPI_Sendrecv(&matrix[N+2], N+2, MPI_DOUBLE, destsource_up, my_rank, &matrix[(N_loc+1)*(N+2)], N+2, MPI_DOUBLE, destsource_down, tag_down, MPI_COMM_WORLD, &status);        
-            MPI_Sendrecv(&matrix[N_loc*(N+2)], N+2, MPI_DOUBLE, destsource_down, my_rank, matrix, N+2, MPI_DOUBLE, destsource_up, tag_up, MPI_COMM_WORLD, &status);
-
-            // update bordering rows with received data on device
-            size_t start = (N_loc+1) * (N+2);
-           #pragma acc update device(matrix[0:N+2], matrix[start:N+2])
-
-#ifdef TIME
-            t4 = MPI_Wtime();
-            t_comm += t4 - t3;
-#endif
-
-#ifdef TIME
-            t5 = MPI_Wtime();
-#endif
-
-#ifdef OPENACC
-            // update system's state on device
-           #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
-            for (i=1; i<=N_loc; ++i)
-                for (j=1; j<=N; ++j)
-                    matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
-                    ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
-                      matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
-#else
-            // update system's state on host
-           #pragma omp parallel for collapse(2)
-            for (i=1; i<=N_loc; ++i)
-                for (j=1; j<=N; ++j)
-                    matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
-                    ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
-                      matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
-#endif
-
-            // switch pointers (if not using OpenACC) or copy data
-            // between matrices (if using OpenACC)
-            //
-            // NOTICE: in OpenACC pointer swapping is not available
-#ifdef OPENACC
-           #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent collapse(2)
-            for (i=1; i<N_loc+1; i++)
-                for (j=1; j<N+1; j++)
-                    matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j];
-#else
-            double* tmp;
-            tmp = matrix;
-            matrix = matrix_new;
-            matrix_new = tmp;
-#endif
-
-#ifdef TIME
-            t6 = MPI_Wtime();
-            t_comp += t6 - t5;
-#endif
-
-#ifdef TIME
-            t3 = MPI_Wtime();
-#endif
-
-            // update rows to be sent to other processes
-            start = N_loc * (N+2);
-           #pragma acc update self(matrix[N+2:N+2], matrix[start:N+2])
-
-#ifdef TIME
-            t4 = MPI_Wtime();
-            t_comm += t4 - t3;
-#endif
-
-        }
-    }
-    
     // print element for checking
+    // AGGIUSTARE
     if (((offset / N) <= row_peek) && (row_peek < (offset / N + N_loc))) {
 	
         size_t true_row_peek = row_peek;
@@ -267,6 +224,7 @@ int main(int argc, char* argv[]){
     MPI_Barrier(MPI_COMM_WORLD);
     
     // save data for plot (process 0 gathers data and prints them to file)
+    // AGGIUSTARE
     if (my_rank == 0) {
 
         save_gnuplot_parallel(matrix, N_loc, N, my_rank, offset/N, n_procs);
@@ -289,7 +247,14 @@ int main(int argc, char* argv[]){
     free(matrix);
     free(matrix_new);
 
+    MPI_Win_free(win);
+    free(boundaries_new);
+
+    MPI_Group_free(&neighbor_group);
+    MPI_Group_free(&world_group);
+
     // gather measured times and print them
+    // AGGIUSTARE
 #ifdef TIME
     double* times;
 

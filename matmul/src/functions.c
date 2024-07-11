@@ -15,7 +15,7 @@
 //
 // NOTICE: in general we could have made code simpler by getting
 // n_treads outside this function in the main, but we couldn't, since
-// openMP seems to be not compatible with CUDA)
+// openMP seems to be not compatible with CUDA
 int random_mat(double* mat, int mat_size, unsigned int seed, int rank) {
 
     // set factor to obtain elements with at most an order of 

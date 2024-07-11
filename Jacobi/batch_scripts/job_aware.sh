@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=matmul_blas
+#SBATCH --job-name=Jacobi
 #SBATCH --nodes=32
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=1
@@ -10,13 +10,10 @@
 
 
 # set matrix size
-mat_size=1200
+mat_size=12000
 
 # set number of openMP threads per process
 export OMP_NUM_THREADS=10
-
-# set number of BLAS threads
-export OPENBLAS_NUM_THREADS=10
 
 # set openMP binding policy (each thread on a different core)
 export OMP_PROC_BIND=close
@@ -24,26 +21,29 @@ export OMP_PLACES=cores
 
 
 # load modules
-module load openmpi/4.1.6--gcc--12.2.0
-module load openblas/0.3.24--gcc--12.2.0
+module load cuda/
+module load openmpi/4.1.6--nvhpc--23.11
 
 
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times_blas.csv
+echo "#n_procs,init,communication,computation" > profiling/times.csv
 
 # compile program
-srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c -lopenblas src/matmul_blas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -DOPENMP -o matmul_blas.x
+srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIME src/functions.c src/jacobi_aware.c -o jacobi.x
 
 # run program
 for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
-    echo -n "$nprocs," >> profiling/times_blas.csv
-    mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./matmul_blas.x
+	echo -n "$nprocs," >> profiling/times.csv
+	mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./jacobi.x $mat_size 10 11 4 
 done
 
+# rename CSV
+srun -n 1 -N 1 mv times.csv times_aware.csv
+
 # remove executable
-srun -n 1 -N 1 rm matmul_blas.x
+srun -n 1 -N 1 rm jacobi.x
 
 cd batch_scripts/ || exit

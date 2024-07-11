@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=matmul_cublas
-#SBATCH --nodes=16
+#SBATCH --nodes=32
 #SBATCH --ntasks=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=1
@@ -39,7 +39,7 @@ srun -n 1 -N 1 gcc -fopenmp -lm -c src/functions.c -DOPENMP -o src/functions.o
 srun -n 1 -N 1 nvcc -lgomp -lmpi -lcublas -lcudart src/functions.o -L/leonardo/prod/opt/libraries/openmpi/4.1.6/nvhpc--23.11/lib/ -L/leonardo/prod/opt/compilers/cuda/12.1/none src/matmul_cublas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -o matmul_cublas.x
 
 # run program
-for ((nprocs = 1; nprocs <= 16; nprocs *= 2))
+for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
     echo -n "$nprocs," >> profiling/times_cublas.csv
     mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./matmul_cublas.x

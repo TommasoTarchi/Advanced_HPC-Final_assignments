@@ -11,3 +11,6 @@ notes.md
 
 # SLURM reports
 **/report.out
+
+# images
+**/*.png

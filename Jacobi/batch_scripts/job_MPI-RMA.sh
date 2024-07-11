@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=matmul_simple
+#SBATCH --job-name=Jacobi
 #SBATCH --nodes=32
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=11
@@ -9,7 +9,7 @@
 
 
 # set matrix size
-mat_size=1200
+mat_size=12000
 
 # set number of openMP threads per process
 export OMP_NUM_THREADS=10
@@ -26,19 +26,22 @@ module load openmpi/4.1.6--gcc--12.2.0
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times_simple.csv
+echo "#n_procs,init,communication,computation" > profiling/times.csv
 
 # compile program
-srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c src/matmul_simple.c -DOPENMP -DTIME -DTEST -DMAT_SIZE=$mat_size -o matmul_simple.x
+srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi_MPI-RMA.c -o jacobi.x
 
-# run program (each node will host 1 MPI processe)
+# run program
 for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
-    echo -n "$nprocs," >> profiling/times_simple.csv
-    mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./matmul_simple.x
+	echo -n "$nprocs," >> profiling/times.csv
+	mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./jacobi.x $mat_size 10 11 4 
 done
 
+# rename CSV
+srun -n 1 -N 1 mv times.csv times_MPI-RMA.csv
+
 # remove executable
-srun -n 1 -N 1 rm matmul_simple.x
+srun -n 1 -N 1 rm jacobi.x
 
 cd batch_scripts/ || exit
