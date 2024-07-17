@@ -40,6 +40,7 @@ int main(int argc, char* argv[]){
 
     // init MPI window
     MPI_Win win;
+    MPI_Request request;
 
     // variables for timing
     //
@@ -112,10 +113,10 @@ int main(int argc, char* argv[]){
     memset(matrix_new, 0, byte_dimension);
 
     // allocate boundaries ('boundaries' is allocated and assigned to a window)
-    MPI_Win_allocate(2 * (N + 2) * sizeof(double), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, boundaries, &win);
+    MPI_Win_allocate(2 * (N + 2) * sizeof(double), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &boundaries, &win);
     boundaries_new = (double*) malloc(2 * (N + 2) * sizeof(double));
-    memset(boundaries, 0, N + 2);
-    memset(boundaries_new, 0, N + 2);
+    memset(boundaries, 0, 2 * (N + 2) * sizeof(double));
+    memset(boundaries_new, 0, 2 * (N + 2) * sizeof(double));
 
 #ifdef TIME
     t1 = MPI_Wtime();
@@ -156,9 +157,24 @@ int main(int argc, char* argv[]){
     // create group for RMA communications
     MPI_Group world_group, neighbor_group;
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-    int neighbors[2] = {dest_up, dest_down};
+    int *neighbors;
+    if (my_rank == 0) {
+	neighbors = (int*) malloc(1 * sizeof(int));
+	neighbors[0] = dest_down;
+    } else if (my_rank == n_procs-1) {
+	neighbors = (int*) malloc(1 * sizeof(int));
+	neighbors[0] = dest_up;
+    } else {
+	neighbors = (int*) malloc(2 * sizeof(int));
+	neighbors[0] = dest_up;
+	neighbors[1] = dest_down;
+    }
     MPI_Group_incl(world_group, 2, neighbors, &neighbor_group);
 
+	///////////////////////////////////////////////////////////////////
+	printf("Ready to start algorithm from rank %d\n", my_rank);
+	///////////////////////////////////////////////////////////////////
+    
     // start algorithm
     for (it=0; it<iterations; ++it) {
 
@@ -168,21 +184,50 @@ int main(int argc, char* argv[]){
 
         // post exposure epoch
         MPI_Win_post(neighbor_group, 0, win);
+	
+	///////////////////////////////////////////////////////////////////
+	printf("Window posted at iteration %d from rank %d\n", it, my_rank);
+	///////////////////////////////////////////////////////////////////
 
         // start access epoch
         MPI_Win_start(neighbor_group, 0, win);
 
+	///////////////////////////////////////////////////////////////////
+	printf("Window started at iteration %d from rank %d\n", it, my_rank);
+	///////////////////////////////////////////////////////////////////
+    
         // communicate boundaries
+	///////////////////////////////////////////////////////////////////
+	int err = 0;
+	///////////////////////////////////////////////////////////////////
         if (my_rank > 0)
-            MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, N + 2, N + 2, MPI_DOUBLE, win);
+            err = MPI_Rput(matrix, N + 2, MPI_DOUBLE, dest_up, (N + 2)* sizeof(double), N + 2, MPI_DOUBLE, win, &request);
+		if (err != MPI_SUCCESS) {
+		    char error_string[BUFSIZ];
+		    int length_of_error_string;
+		    MPI_Error_string(err, error_string, &length_of_error_string);
+		    fprintf(stderr, "Error in MPI_Rput to upper neighbor at iteration %zu from rank %d: %s\n", it, my_rank, error_string);
+		    MPI_Abort(MPI_COMM_WORLD, err);
+		}
         if (my_rank < n_procs - 1)
-            MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win);
+            err = MPI_Rput(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win, &request);
+		if (err != MPI_SUCCESS) {
+		    char error_string[BUFSIZ];
+		    int length_of_error_string;
+		    MPI_Error_string(err, error_string, &length_of_error_string);
+		    fprintf(stderr, "Error in MPI_Rput to lower neighbor at iteration %zu from rank %d: %s\n", it, my_rank, error_string);
+		    MPI_Abort(MPI_COMM_WORLD, err);
+		}
 
         // complete access epoch
         MPI_Win_complete(win);
 
         // wait for RMA operations to complete
-        MPI_Win_wait(win, MPI_STATUS_IGNORE);
+        MPI_Win_wait(win);
+	
+	///////////////////////////////////////////////////////////////////
+	printf("Communications at iteration %d completed from rank %d\n", it, my_rank);
+	///////////////////////////////////////////////////////////////////
 
 #ifdef TIME
         t4 = MPI_Wtime();
@@ -222,13 +267,17 @@ int main(int argc, char* argv[]){
               boundaries[ ( N + 2 ) * j ] );
 
         // switch pointers to matrices
-        double* tmp, tmp_bound;
+        double *tmp, *tmp_bound;
         tmp = matrix;
         matrix = matrix_new;
         matrix_new = tmp;
         tmp_bound = boundaries;
         boundaries = boundaries_new;
         boundaries_new = tmp_bound;
+
+	///////////////////////////////////////////////////////////////////
+	printf("Iteration %d completed\n", it);
+	///////////////////////////////////////////////////////////////////
 
 #ifdef TIME
         t6 = MPI_Wtime();
@@ -292,11 +341,12 @@ int main(int argc, char* argv[]){
     free(matrix);
     free(matrix_new);
 
-    MPI_Win_free(win);
+    MPI_Win_free(&win);
     free(boundaries_new);
 
     MPI_Group_free(&neighbor_group);
     MPI_Group_free(&world_group);
+    free(neighbors);
 
     // gather measured times and print them
 #ifdef TIME
