@@ -98,10 +98,6 @@ int main(int argc, char** argv) {
     double* B = (double*) malloc(N_loc * N * sizeof(double));
     double* C = (double*) malloc(N_loc * N * sizeof(double));
 
-#ifdef TIME
-    t1 = MPI_Wtime();
-#endif
-
     // compute global seed and broadcast to all processes
     unsigned int my_seed;
     if (my_rank == 0) {
@@ -109,6 +105,10 @@ int main(int argc, char** argv) {
         my_seed = (unsigned int) (current_time + 1);  // '+1' needed because seeds 0 and 1 give same random seq.
     }
     MPI_Bcast(&my_seed, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
+#ifdef TIME
+    t1 = MPI_Wtime();
+#endif
 
     // initialize A and B using different seed for each thread
     // (and different for A and B)
@@ -124,7 +124,18 @@ int main(int argc, char** argv) {
     double* A_dev;
     double* C_dev;
     cudaMalloc((void**) &A_dev, N_loc * N * sizeof(double));
+
+#ifdef TIME
+        t5 = MPI_Wtime();
+#endif
+
     cudaMemcpy(A_dev, A, N_loc * N * sizeof(double), cudaMemcpyHostToDevice);
+
+#ifdef TIME
+        t6 = MPI_Wtime();
+        t_comp += t6 - t5;
+#endif
+
     cudaMalloc((void**) &C_dev, N_loc * N * sizeof(double));
 
     // for testing correctness of matmul
@@ -161,10 +172,6 @@ int main(int argc, char** argv) {
     double* B_col = (double*) malloc(N * N_cols * sizeof(double));  // matrix to store received blocks
 
     for (int count=0; count<n_procs; count++) {
-
-#ifdef TIME
-        t3 = MPI_Wtime();
-#endif
 	
         if (count == N_rest) {
             // update number of columns and reallocate auxiliary matrices
@@ -183,6 +190,10 @@ int main(int argc, char** argv) {
                 while_count++;
             }
        }
+
+#ifdef TIME
+        t3 = MPI_Wtime();
+#endif
 
         // create block to send to other processes
         create_block(B, B_block, N_rows, N_cols, offset, N);

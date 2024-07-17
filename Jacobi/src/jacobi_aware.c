@@ -295,12 +295,20 @@ int main(int argc, char* argv[]){
         times = (double*) malloc(3 * sizeof(double));
 
     times[0] = t2 - t1;  // time for initialization
-    times[1] = t_comm;  // time for communications
-    times[2] = t_comp;  // time for computation
+    times[1] = t_comm / (double) iterations;  // time for communications
+    times[2] = t_comp / (double) iterations;  // time for computation
     
     MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
+        // average communication and computation times over
+        // iterations of the algorithm
+        for (i=0; i<n_procs; i++) {
+            times[1 + 3 * n_procs] /= (double) iterations;
+            times[2 + 3 * n_procs] /= (double) iterations;
+        }
+
+        // save times
         char csv_name[] = "profiling/times_aware.csv";
         save_time(times, csv_name, n_procs);
     }

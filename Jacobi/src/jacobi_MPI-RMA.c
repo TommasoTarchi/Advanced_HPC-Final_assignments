@@ -184,22 +184,22 @@ int main(int argc, char* argv[]){
 
         // post exposure epoch
         MPI_Win_post(neighbor_group, 0, win);
-	
-	///////////////////////////////////////////////////////////////////
-	printf("Window posted at iteration %d from rank %d\n", it, my_rank);
-	///////////////////////////////////////////////////////////////////
+
+        ///////////////////////////////////////////////////////////////////
+        printf("Window posted at iteration %d from rank %d\n", it, my_rank);
+        ///////////////////////////////////////////////////////////////////
 
         // start access epoch
         MPI_Win_start(neighbor_group, 0, win);
 
-	///////////////////////////////////////////////////////////////////
-	printf("Window started at iteration %d from rank %d\n", it, my_rank);
-	///////////////////////////////////////////////////////////////////
-    
+        ///////////////////////////////////////////////////////////////////
+        printf("Window started at iteration %d from rank %d\n", it, my_rank);
+        ///////////////////////////////////////////////////////////////////
+
         // communicate boundaries
-	///////////////////////////////////////////////////////////////////
-	int err = 0;
-	///////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////
+        int err = 0;
+        ///////////////////////////////////////////////////////////////////
         if (my_rank > 0)
             err = MPI_Rput(matrix, N + 2, MPI_DOUBLE, dest_up, (N + 2)* sizeof(double), N + 2, MPI_DOUBLE, win, &request);
 		if (err != MPI_SUCCESS) {
@@ -224,10 +224,10 @@ int main(int argc, char* argv[]){
 
         // wait for RMA operations to complete
         MPI_Win_wait(win);
-	
-	///////////////////////////////////////////////////////////////////
-	printf("Communications at iteration %d completed from rank %d\n", it, my_rank);
-	///////////////////////////////////////////////////////////////////
+
+        ///////////////////////////////////////////////////////////////////
+        printf("Communications at iteration %d completed from rank %d\n", it, my_rank);
+        ///////////////////////////////////////////////////////////////////
 
 #ifdef TIME
         t4 = MPI_Wtime();
@@ -360,10 +360,18 @@ int main(int argc, char* argv[]){
     times[0] = t2 - t1;  // time for initialization
     times[1] = t_comm;  // time for communications
     times[2] = t_comp;  // time for computation
-    
+
     MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
+        // average communication and computation times over
+        // iterations of the algorithm
+        for (i=0; i<n_procs; i++) {
+            times[1 + 3 * n_procs] /= (double) iterations;
+            times[2 + 3 * n_procs] /= (double) iterations;
+        }
+
+        // save times
         char csv_name[] = "profiling/times_MPI-RMA.csv";
         save_time(times, csv_name, n_procs);
     }
