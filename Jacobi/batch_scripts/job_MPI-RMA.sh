@@ -9,7 +9,7 @@
 
 
 # set matrix size
-mat_size=12000
+mat_size=111
 
 # set number of openMP threads per process
 export OMP_NUM_THREADS=4
@@ -29,7 +29,7 @@ cd ../
 echo "#n_procs,init,communication,computation" > profiling/times_MPI-RMA.csv
 
 # compile program
-srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi_MPI-RMA-exp.c -o jacobi_MPI-RMA.x
+srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi_MPI-RMA.c -o jacobi_MPI-RMA.x
 
 # run program
 for ((nprocs = 2; nprocs <= 2; nprocs *= 2))

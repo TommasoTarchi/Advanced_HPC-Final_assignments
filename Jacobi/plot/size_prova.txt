@@ -1,0 +1,1 @@
+matrice seriale per check: 111 x 111

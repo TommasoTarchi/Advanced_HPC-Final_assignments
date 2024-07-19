@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=matmul_blas
-#SBATCH --nodes=32
+#SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=11
 #SBATCH --partition=dcgp_usr_prod
-#SBATCH -A ict24_dssc_gpu
+#SBATCH -A ict24_dssc_cpu
 #SBATCH --output=report.out
 
 
