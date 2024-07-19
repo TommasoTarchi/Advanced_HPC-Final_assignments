@@ -49,7 +49,7 @@ void save_gnuplot(double *M, size_t mat_size) {
 
 // save matrix state to file (each MPI process it's own grid) in case boundaries
 // are seprated from proper cells
-void save_gnuplot_parallel_no_bounds(double *M, double *bound, size_t dim_y, size_t dim_x, int rank, double y_offset, int n_procs) {
+void save_gnuplot_parallel_no_bounds(double *M, double *bound_up, double *bound_down, size_t dim_y, size_t dim_x, int rank, double y_offset, int n_procs) {
   
     size_t i, j;
     const double h = 0.1;
@@ -64,7 +64,7 @@ void save_gnuplot_parallel_no_bounds(double *M, double *bound, size_t dim_y, siz
 
     if (rank == 0)
         for (j=0; j<dim_x+2; ++j)
-            fprintf(file, "%f\t%f\t%f\n", h*j, -0.0, bound[j]);
+            fprintf(file, "%f\t%f\t%f\n", h*j, -0.0, bound_up[j]);
 
     for (i=0; i<dim_y; ++i)
         for (j=0; j<dim_x+2; ++j)
@@ -72,7 +72,7 @@ void save_gnuplot_parallel_no_bounds(double *M, double *bound, size_t dim_y, siz
 
     if (rank == n_procs-1)
         for (j=0; j<dim_x+2; ++j)
-            fprintf(file, "%f\t%f\t%f\n", h*j, -y_offset-h*(dim_y+1), bound[dim_x + 2 + j]);
+            fprintf(file, "%f\t%f\t%f\n", h*j, -y_offset-h*(dim_y+1), bound_down[j]);
 
     fclose(file);
 }

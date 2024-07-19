@@ -74,6 +74,7 @@ int main(int argc, char* argv[]){
             fprintf(stderr,"\nwrong number of arguments. Usage: ./a.out dim it n m\n");
         
         MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Finalize();
         return 1;
     }
     N = atoi(argv[1]);
@@ -108,6 +109,7 @@ int main(int argc, char* argv[]){
         }
 
         MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Finalize();
         return 1;
     }
 
