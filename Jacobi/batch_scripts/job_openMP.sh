@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=matmul_blas
+#SBATCH --job-name=jacobi_omp
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=6
@@ -11,6 +11,7 @@
 # choose matrix size and number of threads
 mat_size=111
 num_threads=5
+
 
 # set number of openMP threads per process
 export OMP_NUM_THREADS=$num_threads

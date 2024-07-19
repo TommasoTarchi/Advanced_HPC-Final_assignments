@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=Jacobi
+#SBATCH --job-name=jacobi_acc
 #SBATCH --nodes=32
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=1

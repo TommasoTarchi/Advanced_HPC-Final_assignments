@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=21
 #SBATCH --partition=dcgp_usr_prod
 #SBATCH -A ict24_dssc_cpu
-#SBATCH --output=report_blas.out
+#SBATCH --output=report.out
 
 
 # choose matrix size and number of threads
