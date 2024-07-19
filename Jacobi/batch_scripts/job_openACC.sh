@@ -1,11 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=matmul_blas
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=2
-#SBATCH --cpus-per-task=6
-#SBATCH --partition=dcgp_usr_prod
-#SBATCH -A ict24_dssc_cpu
-#SBATCH --output=report_blas.out
+#SBATCH --job-name=Jacobi
+#SBATCH --nodes=32
+#SBATCH --ntasks-per-node=1
+#SBATCH --gpus-per-node=1
+#SBATCH --cpus-per-task=11
+#SBATCH --partition=boost_usr_prod
+#SBATCH -A ict24_dssc_gpu
+#SBATCH --output=report.out
 
 
 # choose matrix size and number of threads
@@ -38,7 +39,7 @@ srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIM
 for ((nprocs = 2; nprocs <= 4; nprocs *= 2))
 do
 	echo -n "$nprocs," >> profiling/times.csv
-	mpirun -np "$nprocs" --map-by socket:PE=$num_threads --report-bindings ./jacobi.x $mat_size 10 11 4 
+	mpirun -np "$nprocs" --map-by node:PE=$num_threads --report-bindings ./jacobi.x $mat_size 10 11 4 
 done
 
 # remove executable
