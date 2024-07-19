@@ -1,18 +1,20 @@
 #!/bin/bash
-#SBATCH --job-name=matmul_simple
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=4
+#SBATCH --job-name=matmul_blas
+#SBATCH --nodes=16
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=21
 #SBATCH --partition=dcgp_usr_prod
-#SBATCH -A ict24_dssc_gpu
+#SBATCH -A ict24_dssc_cpu
 #SBATCH --output=report.out
 
 
-# set matrix size
+# choose matrix size and number of threads
 mat_size=1200
+num_threads=20
+
 
 # set number of openMP threads per process
-export OMP_NUM_THREADS=3
+export OMP_NUM_THREADS=$num_threads
 
 # set openMP binding policy (each thread on a different core)
 export OMP_PROC_BIND=close
@@ -32,10 +34,11 @@ echo "#n_procs,init,communication,computation" > profiling/times_simple.csv
 srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c src/matmul_simple.c -DOPENMP -DTIME -DTEST -DMAT_SIZE=$mat_size -o matmul_simple.x
 
 # run program (each process will be placed on a different socket)
-for ((nprocs = 1; nprocs <= 4; nprocs *= 2))
+for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
     echo -n "$nprocs," >> profiling/times_simple.csv
-    mpirun -np "$nprocs" --map-by socket:PE=3 --report-bindings ./matmul_simple.x
+    mpirun -np "$nprocs" --map-by socket:PE=$num_threads --report-bindings ./matmul_simple.x
+    echo
 done
 
 # remove executable
