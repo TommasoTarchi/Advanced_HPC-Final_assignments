@@ -159,17 +159,22 @@ int main(int argc, char* argv[]){
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);
     int *neighbors;
     if (my_rank == 0) {
-	neighbors = (int*) malloc(1 * sizeof(int));
-	neighbors[0] = dest_down;
+	neighbors = (int*) malloc(2 * sizeof(int));
+	neighbors[0] = my_rank;
+	neighbors[1] = dest_down;
+	MPI_Group_incl(world_group, 2, neighbors, &neighbor_group);
     } else if (my_rank == n_procs-1) {
-	neighbors = (int*) malloc(1 * sizeof(int));
-	neighbors[0] = dest_up;
-    } else {
 	neighbors = (int*) malloc(2 * sizeof(int));
 	neighbors[0] = dest_up;
-	neighbors[1] = dest_down;
+	neighbors[1] = my_rank;
+	MPI_Group_incl(world_group, 2, neighbors, &neighbor_group);
+    } else {
+	neighbors = (int*) malloc(3 * sizeof(int));
+	neighbors[0] = dest_up;
+	neighbors[1] = my_rank;
+	neighbors[2] = dest_down;
+	MPI_Group_incl(world_group, 3, neighbors, &neighbor_group);
     }
-    MPI_Group_incl(world_group, 2, neighbors, &neighbor_group);
 
 	///////////////////////////////////////////////////////////////////
 	printf("Ready to start algorithm from rank %d\n", my_rank);
@@ -182,6 +187,10 @@ int main(int argc, char* argv[]){
         t3 = MPI_Wtime();
 #endif
 
+        ///////////////////////////////////////////////////////////////////
+        int err = 0;
+        ///////////////////////////////////////////////////////////////////
+
         // post exposure epoch
         MPI_Win_post(neighbor_group, 0, win);
 
@@ -190,18 +199,22 @@ int main(int argc, char* argv[]){
         ///////////////////////////////////////////////////////////////////
 
         // start access epoch
-        MPI_Win_start(neighbor_group, 0, win);
+        err = MPI_Win_start(neighbor_group, 0, win);
+	if (err != MPI_SUCCESS) {
+	    char error_string[BUFSIZ];
+	    int length_of_error_string;
+	    MPI_Error_string(err, error_string, &length_of_error_string);
+	    fprintf(stderr, "Error in MPI_Win_start at iteration %zu from rank %d: %s\n", it, my_rank, error_string);
+	    MPI_Abort(MPI_COMM_WORLD, err);
+	}
 
         ///////////////////////////////////////////////////////////////////
         printf("Window started at iteration %d from rank %d\n", it, my_rank);
         ///////////////////////////////////////////////////////////////////
 
         // communicate boundaries
-        ///////////////////////////////////////////////////////////////////
-        int err = 0;
-        ///////////////////////////////////////////////////////////////////
         if (my_rank > 0)
-            err = MPI_Rput(matrix, N + 2, MPI_DOUBLE, dest_up, (N + 2)* sizeof(double), N + 2, MPI_DOUBLE, win, &request);
+            err = MPI_Rput(matrix, N + 2, MPI_DOUBLE, dest_up, N + 2, N + 2, MPI_DOUBLE, win, &request);
 		if (err != MPI_SUCCESS) {
 		    char error_string[BUFSIZ];
 		    int length_of_error_string;

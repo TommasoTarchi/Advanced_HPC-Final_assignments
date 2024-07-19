@@ -55,7 +55,7 @@ int main(int argc, char* argv[]){
     size_t i, j, it;
 
     // initialize matrix and boundaries
-    double *matrix, *matrix_new, *boundary_up, *boundary_down, *boundary_up_new, *boundary_down_new;
+    double *matrix, *matrix_new, *boundary_up, *boundary_down;
 
     // define needed variables
     size_t N = 0, iterations = 0, row_peek = 0, col_peek = 0;
@@ -115,12 +115,8 @@ int main(int argc, char* argv[]){
     // allocate boundaries ('boundaries' is allocated and assigned to a window)
     MPI_Win_allocate((N + 2) * sizeof(double), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &boundary_up, &win_up);
     MPI_Win_allocate((N + 2) * sizeof(double), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &boundary_down, &win_down);
-    boundary_up_new = (double*) malloc((N + 2) * sizeof(double));
-    boundary_down_new = (double*) malloc((N + 2) * sizeof(double));
     memset(boundary_up, 0, (N + 2) * sizeof(double));
     memset(boundary_down, 0, (N + 2) * sizeof(double));
-    memset(boundary_up_new, 0, (N + 2) * sizeof(double));
-    memset(boundary_down_new, 0, (N + 2) * sizeof(double));
 
 #ifdef TIME
     t1 = MPI_Wtime();
@@ -131,7 +127,6 @@ int main(int argc, char* argv[]){
     for (i=0; i<N_loc; ++i)
         for (j=1; j<=N; ++j) {
             matrix[(i * (N + 2)) + j] = 0.5;
-            matrix_new[(i * (N + 2)) + j] = 0.5;
         }
 
     // set up borders
@@ -146,7 +141,6 @@ int main(int argc, char* argv[]){
         
         for (i=1; i<=N+1; i++) {
             boundary_down[N + 1 - i] = i * increment;
-            boundary_down_new[N + 1 - i] = i * increment;
         }
     }
 
@@ -159,20 +153,14 @@ int main(int argc, char* argv[]){
     int dest_down = my_rank + 1;
 
     // create groups for RMA communications
+    //
+    // (groups only contain processes exposing/accessing the windows)
     MPI_Group world_group, group_up, group_down;
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-    if (my_rank == 0) {
-        const int neighbors_down[] = {my_rank, dest_down}
-        MPI_Group_incl(world_group, 2, neighbors_down, &group_down);
-    } else if (my_rank == n_procs-1) {
-        const int neighbors_up[] = {dest_up, my_rank}
-        MPI_Group_incl(world_group, 2, neighbors_up, &group_up);
-    } else {
-        const int neighbors_down[] = {my_rank, dest_down}
-        const int neighbors_up[] = {dest_up, my_rank}
-        MPI_Group_incl(world_group, 2, neighbors_down, &group_down);
-        MPI_Group_incl(world_group, 2, neighbors_up, &group_up);
-    }
+    if (my_rank > 0)
+        MPI_Group_incl(world_group, 1, &dest_up, &group_up);
+    if (my_rank < n_procs-1)
+        MPI_Group_incl(world_group, 1, &dest_down, &group_down);
 
 	///////////////////////////////////////////////////////////////////
 	printf("Ready to start algorithm from rank %d\n", my_rank);
@@ -186,43 +174,36 @@ int main(int argc, char* argv[]){
 #endif
 
         // post exposure epoch
-        MPI_Win_post(neighbor_up, 0, win_up);
-        MPI_Win_post(neighbor_down, 0, win_down);
+	if (my_rank > 0)
+            MPI_Win_post(group_up, 0, win_up);
+	if (my_rank < n_procs-1)
+            MPI_Win_post(group_down, 0, win_down);
 
         ///////////////////////////////////////////////////////////////////
         printf("Windows posted at iteration %d from rank %d\n", it, my_rank);
         ///////////////////////////////////////////////////////////////////
-
-        if (my_rank == 0) {
-
-            MPI_Win_start(neighbors_down, 0, win_down);
-            MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win_down);
+	
+	if (my_rank > 0) {
+            MPI_Win_start(group_up, 0, win_down);
+            MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, 0, N + 2, MPI_DOUBLE, win_down);
             MPI_Win_complete(win_down);
+	}
 
-        } else if (my_rank == n_procs-1) {
-
-            MPI_Win_start(neighbors_up, 0, win_up);
-            MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, 0, N + 2, MPI_DOUBLE, win_up);
+	if (my_rank < n_procs-1) {
+            MPI_Win_start(group_down, 0, win_up);
+            MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win_up);
             MPI_Win_complete(win_up);
+	}
 
-        } else {
-
-            MPI_Win_start(neighbors_up, 0, win_up);
-            MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, 0, N + 2, MPI_DOUBLE, win_up);
-            MPI_Win_complete(win_up);
-
-            MPI_Win_start(neighbors_down, 0, win_down);
-            MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win_down);
-            MPI_Win_complete(win_down);
-        }
-        
         ///////////////////////////////////////////////////////////////////
         printf("Communications at iteration %d launched from rank %d\n", it, my_rank);
         ///////////////////////////////////////////////////////////////////
 
         // wait for RMA operations to complete
-        MPI_Win_wait(win_up);
-        MPI_Win_wait(win_down);
+	if (my_rank > 0)
+            MPI_Win_wait(win_up);
+	if (my_rank < n_procs-1)
+            MPI_Win_wait(win_down);
 
         ///////////////////////////////////////////////////////////////////
         printf("Communications at iteration %d completed from rank %d\n", it, my_rank);
@@ -241,7 +222,7 @@ int main(int argc, char* argv[]){
        #pragma omp parallel for
         for (j=1; j<N+1; j++)
             matrix_new[ j ] = ( 0.25 ) *
-            ( boundaries[ j ] +
+            ( boundary_up[ j ] +
               matrix[ j - 1 ] +
               matrix[ j + 1 ] +
               matrix[ N + 2 + j ] );
@@ -263,16 +244,13 @@ int main(int argc, char* argv[]){
             ( matrix[ ( N_loc - 2 ) * ( N + 2 ) + j ] +
               matrix[ ( N_loc - 1 ) * ( N + 2) + ( j - 1 ) ] +
               matrix[ ( N_loc - 1 ) * ( N + 2) + ( j + 1 ) ] +
-              boundaries[ ( N + 2 ) * j ] );
+              boundary_down[ j ] );
 
         // switch pointers to matrices
-        double *tmp, *tmp_bound;
+        double *tmp, *tmp_bound_up, *tmp_bound_down;
         tmp = matrix;
         matrix = matrix_new;
         matrix_new = tmp;
-        tmp_bound = boundaries;
-        boundaries = boundaries_new;
-        boundaries_new = tmp_bound;
 
 	///////////////////////////////////////////////////////////////////
 	printf("Iteration %d completed\n", it);
@@ -303,7 +281,7 @@ int main(int argc, char* argv[]){
     if (my_rank == 0) {
 
         // print process 0's data
-        save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc, N, my_rank, offset/N, n_procs);
+        //save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc, N, my_rank, offset/N, n_procs);
         
         size_t col_offset_recv = N_loc;
         size_t N_loc_recv;
@@ -312,8 +290,8 @@ int main(int argc, char* argv[]){
             N_loc_recv = N / n_procs + (count < N_rest);
 
             // receive central processes' data and print them
-            MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
-            save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc_recv, N, count, col_offset_recv, n_procs);
+            //MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
+            //save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc_recv, N, count, col_offset_recv, n_procs);
 
             col_offset_recv += N_loc_recv;
         }
@@ -321,20 +299,20 @@ int main(int argc, char* argv[]){
         N_loc_recv = N / n_procs + (n_procs-1 < N_rest);
 
         // receive last process's data and print them
-        MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
-        MPI_Recv(&boundaries[N+2], N + 2, MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
-        save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc_recv, N, n_procs-1, col_offset_recv, n_procs);
+        //MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
+        //MPI_Recv(&boundaries[N+2], N + 2, MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
+        //save_gnuplot_parallel_no_bounds(matrix, boundaries, N_loc_recv, N, n_procs-1, col_offset_recv, n_procs);
     
     } else if (my_rank < n_procs-1) {
 
         // send data from central processes
-        MPI_Send(matrix, N_loc * (N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+        //MPI_Send(matrix, N_loc * (N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
 
     } else {
 
         // send data from last process
-        MPI_Send(matrix, N_loc * (N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
-        MPI_Send(&boundaries[N+2], N + 2, MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+        //MPI_Send(matrix, N_loc * (N+2), MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
+        //MPI_Send(&boundaries[N+2], N + 2, MPI_DOUBLE, 0, my_rank, MPI_COMM_WORLD);
     }
 
     free(matrix);
@@ -342,20 +320,12 @@ int main(int argc, char* argv[]){
 
     MPI_Win_free(&win_up);
     MPI_Win_free(&win_down);
-    free(boundary_up_new);
-    free(boundary_down_new);
 
-    if (my_rank == 0) {
-        MPI_Group_free(&group_down);
-    } else if (my_rank == n_procs-1) {
+    if (my_rank > 0)
         MPI_Group_free(&group_up);
-    } else {
+    if (my_rank < n_procs-1)
         MPI_Group_free(&group_down);
-        MPI_Group_free(&group_up);
-    }
     MPI_Group_free(&world_group);
-    free(neighbors_up);
-    free(neighbors_down);
 
     // gather measured times and print them
 #ifdef TIME
