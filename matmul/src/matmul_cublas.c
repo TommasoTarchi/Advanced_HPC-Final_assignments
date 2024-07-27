@@ -234,15 +234,15 @@ int main(int argc, char** argv) {
     }
 
 #ifdef TIME
-        t5 = MPI_Wtime();
+    t5 = MPI_Wtime();
 #endif
 
     // copy accumulated computation from device to host
     cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
 
 #ifdef TIME
-        t6 = MPI_Wtime();
-        t_comp += t6 - t5;
+    t6 = MPI_Wtime();
+    t_comp += t6 - t5;
 #endif
     
     // for testing correctness of matmul
