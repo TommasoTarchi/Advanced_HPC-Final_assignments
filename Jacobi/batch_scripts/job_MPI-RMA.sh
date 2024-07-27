@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=jacobi_rma
-#SBATCH --nodes=1
+#SBATCH --nodes=2
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=dcgp_usr_prod
 #SBATCH -A ict24_dssc_cpu
-#SBATCH --output=report_blas.out
+#SBATCH --output=report.out
 
 
 # choose matrix size and number of threads
@@ -34,7 +34,7 @@ echo "#n_procs,init,communication,computation" > profiling/times_MPI-RMA.csv
 srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi_MPI-RMA.c -o jacobi_MPI-RMA.x
 
 # run program
-for ((nprocs = 2; nprocs <= 2; nprocs *= 2))
+for ((nprocs = 1; nprocs <= 4; nprocs *= 2))
 do
 	echo -n "$nprocs," >> profiling/times_MPI-RMA.csv
 	mpirun -np "$nprocs" --map-by socket:PE=$num_threads --report-bindings ./jacobi_MPI-RMA.x $mat_size 10 11 4 

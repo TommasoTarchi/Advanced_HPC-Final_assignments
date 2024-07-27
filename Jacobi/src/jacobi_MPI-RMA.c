@@ -281,9 +281,11 @@ int main(int argc, char* argv[]){
         N_loc_recv = N / n_procs + (n_procs-1 < N_rest);
 
         // receive last process's data and print them
-        MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
-        MPI_Recv(boundary_down, N + 2, MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
-        save_gnuplot_parallel_no_bounds(matrix, boundary_up, boundary_down, N_loc_recv, N, n_procs-1, col_offset_recv, n_procs);
+	if (n_procs > 1) {
+		MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
+		MPI_Recv(boundary_down, N + 2, MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
+		save_gnuplot_parallel_no_bounds(matrix, boundary_up, boundary_down, N_loc_recv, N, n_procs-1, col_offset_recv, n_procs);
+	}
     
     } else if (my_rank < n_procs-1) {
 
@@ -328,8 +330,8 @@ int main(int argc, char* argv[]){
         // average communication and computation times over
         // iterations of the algorithm
         for (i=0; i<n_procs; i++) {
-            times[1 + 3 * n_procs] /= (double) iterations;
-            times[2 + 3 * n_procs] /= (double) iterations;
+            times[1 + 3 * i] /= (double) iterations;
+            times[2 + 3 * i] /= (double) iterations;
         }
 
         // save times

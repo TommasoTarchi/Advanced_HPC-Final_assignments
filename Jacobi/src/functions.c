@@ -68,7 +68,7 @@ void save_gnuplot_parallel_no_bounds(double *M, double *bound_up, double *bound_
 
     for (i=0; i<dim_y; ++i)
         for (j=0; j<dim_x+2; ++j)
-            fprintf(file, "%f\t%f\t%f\n", h*j, -y_offset-h*i, M[i * (dim_x+2) + j]);
+            fprintf(file, "%f\t%f\t%f\n", h*j, -y_offset-h*(i+1), M[i * (dim_x+2) + j]);
 
     if (rank == n_procs-1)
         for (j=0; j<dim_x+2; ++j)

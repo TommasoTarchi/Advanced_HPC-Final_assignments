@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     // set devices 
     int n_devices;
     cudaGetDeviceCount(&n_devices);
-    cudaSetDevice(my_rank % n_devices)
+    cudaSetDevice(my_rank % n_devices);
 
     // compute local matrices size
     int N_loc_short = N / n_procs;

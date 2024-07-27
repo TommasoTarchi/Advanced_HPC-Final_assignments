@@ -306,8 +306,8 @@ int main(int argc, char* argv[]){
         // average communication and computation times over
         // iterations of the algorithm
         for (i=0; i<n_procs; i++) {
-            times[1 + 3 * n_procs] /= (double) iterations;
-            times[2 + 3 * n_procs] /= (double) iterations;
+            times[1 + 3 * i] /= (double) iterations;
+            times[2 + 3 * i] /= (double) iterations;
         }
 
         // save times
