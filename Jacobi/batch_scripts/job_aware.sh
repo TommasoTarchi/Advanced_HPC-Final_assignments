@@ -1,19 +1,21 @@
 #!/bin/bash
 #SBATCH --job-name=jacobi_aware
-#SBATCH --nodes=32
-#SBATCH --ntasks-per-node=1
-#SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=11
+#SBATCH --nodes=8
+#SBATCH --ntasks-per-node=4
+#SBATCH --gpus-per-node=4
+#SBATCH --cpus-per-task=7
 #SBATCH --partition=boost_usr_prod
 #SBATCH -A ict24_dssc_gpu
 #SBATCH --output=report.out
 
 
-# set matrix size
-mat_size=12000
+# choose matrix size and number of threads
+mat_size=1200
+num_threads=7
+
 
 # set number of openMP threads per process
-export OMP_NUM_THREADS=10
+export OMP_NUM_THREADS=$num_threads
 
 # set openMP binding policy (each thread on a different core)
 export OMP_PROC_BIND=close
@@ -37,7 +39,7 @@ srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIM
 for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
 	echo -n "$nprocs," >> profiling/times_aware.csv
-	mpirun -np "$nprocs" --map-by node:PE=10 --report-bindings ./jacobi_aware.x $mat_size 10 11 4 
+	mpirun -np "$nprocs" --map-by ppr:4:node:PE=$num_threads --report-bindings ./jacobi_aware.x $mat_size 10 11 4 
 done
 
 # remove executable

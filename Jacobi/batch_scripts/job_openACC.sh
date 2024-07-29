@@ -1,17 +1,17 @@
 #!/bin/bash
-#SBATCH --job-name=jacobi_acc
-#SBATCH --nodes=32
-#SBATCH --ntasks-per-node=1
-#SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=11
+#SBATCH --job-name=jacobi_openACC
+#SBATCH --nodes=8
+#SBATCH --ntasks-per-node=4
+#SBATCH --gpus-per-node=4
+#SBATCH --cpus-per-task=7
 #SBATCH --partition=boost_usr_prod
 #SBATCH -A ict24_dssc_gpu
 #SBATCH --output=report.out
 
 
 # choose matrix size and number of threads
-mat_size=111
-num_threads=5
+mat_size=1200
+num_threads=7
 
 
 # set number of openMP threads per process
@@ -36,10 +36,10 @@ echo "#n_procs,init,communication,computation" > profiling/times.csv
 srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIME src/functions.c src/jacobi.c -o jacobi.x
 
 # run program
-for ((nprocs = 2; nprocs <= 4; nprocs *= 2))
+for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
 	echo -n "$nprocs," >> profiling/times.csv
-	mpirun -np "$nprocs" --map-by node:PE=$num_threads --report-bindings ./jacobi.x $mat_size 10 11 4 
+	mpirun -np "$nprocs" --map-by ppr:4:node:PE=$num_threads --report-bindings ./jacobi.x $mat_size 10 11 4 
 done
 
 # remove executable

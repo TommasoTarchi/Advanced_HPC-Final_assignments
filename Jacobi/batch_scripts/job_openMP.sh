@@ -1,16 +1,16 @@
 #!/bin/bash
-#SBATCH --job-name=jacobi_omp
-#SBATCH --nodes=2
+#SBATCH --job-name=jacobi_openMP
+#SBATCH --nodes=16
 #SBATCH --ntasks-per-node=2
-#SBATCH --cpus-per-task=6
+#SBATCH --cpus-per-task=20
 #SBATCH --partition=dcgp_usr_prod
 #SBATCH -A ict24_dssc_cpu
-#SBATCH --output=report_blas.out
+#SBATCH --output=report.out
 
 
 # choose matrix size and number of threads
-mat_size=111
-num_threads=5
+mat_size=1200
+num_threads=20
 
 
 # set number of openMP threads per process
@@ -34,7 +34,7 @@ echo "#n_procs,init,communication,computation" > profiling/times.csv
 srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi.c -o jacobi.x
 
 # run program
-for ((nprocs = 2; nprocs <= 4; nprocs *= 2))
+for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
 	echo -n "$nprocs," >> profiling/times.csv
 	mpirun -np "$nprocs" --map-by socket:PE=$num_threads --report-bindings ./jacobi.x $mat_size 10 11 4 
