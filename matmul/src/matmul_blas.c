@@ -1,6 +1,6 @@
 /*
  * matrix-matrix multiplication using dgemm() function of 
- * BLAS library
+ * openBLAS/MKL library
  *
  * N is the side of the matrices and can be passed during
  * compilation using -DMAT_SIZE=<desired_value>
@@ -23,7 +23,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
-#include <cblas.h>
+#include <mkl.h>
+//#include <cblas.h>
+//#include <openblas_config.h>
 #include "functions.h"
 
 
@@ -141,6 +143,10 @@ int main(int argc, char** argv) {
     // allocate auxiliary matrices
     double* B_block = (double*) malloc(N_rows * N_cols * sizeof(double));  // matrix to store process's block
     double* B_col = (double*) malloc(N * N_cols * sizeof(double));  // matrix to store received blocks
+    
+    // set number of openBLAS/MKL threads
+    //openblas_set_num_threads(n_threads);
+    mkl_set_num_threads(n_threads);
 
     for (int count=0; count<n_procs; count++) {
 
@@ -182,7 +188,7 @@ int main(int argc, char** argv) {
 #endif
 
         // matmul
-        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N, B_col, N_cols, 0.0, &C[offset], N);  // C, N_cols
+        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N_rows, N_cols, N, 1.0, A, N, B_col, N_cols, 0.0, &C[offset], N);
         
 #ifdef TIME
         t6 = MPI_Wtime();

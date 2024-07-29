@@ -1,15 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=matmul_blas
+#SBATCH --job-name=matmul_simple
 #SBATCH --nodes=16
 #SBATCH --ntasks-per-node=2
-#SBATCH --cpus-per-task=21
+#SBATCH --cpus-per-task=20
 #SBATCH --partition=dcgp_usr_prod
 #SBATCH -A ict24_dssc_cpu
 #SBATCH --output=report_simple.out
 
 
 # choose matrix size and number of threads
-mat_size=1200
+mat_size=1000
 num_threads=20
 
 

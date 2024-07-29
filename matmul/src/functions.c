@@ -35,7 +35,7 @@ int random_mat(double* mat, int mat_size, unsigned int seed, int rank) {
         // get each thread's id (=0 if openMP is not enabled)
         my_thread_id = omp_get_thread_num();
 #endif
-        
+
         // setting a different seed for each thread
         struct drand48_data rand_gen;
         srand48_r(seed+(unsigned int)rank*(unsigned int)n_threads+(unsigned int)my_thread_id, &rand_gen);
@@ -62,6 +62,7 @@ int random_mat(double* mat, int mat_size, unsigned int seed, int rank) {
 void create_block(double* mat, double* block, int block_y, int block_x, int offset, int jump) {
 
     // copy data in block
+   #pragma omp parallel for
     for (int row=0; row<block_y; row++) {
         int row_offset = offset + row*jump;
         
