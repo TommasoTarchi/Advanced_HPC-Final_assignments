@@ -12,16 +12,16 @@ csv_file = ""
 profiling_name = ""
 if jacobi == "openMP":
     csv_file = "times_openMP.csv"
-    profiling_name = "profiling_openMP.csv"
+    profiling_name = "profiling_openMP.png"
 elif jacobi == "openACC":
     csv_file = "times_openACC.csv"
-    profiling_name = "profiling_openACC.csv"
+    profiling_name = "profiling_openACC.png"
 elif jacobi == "aware":
     csv_file = "times_aware.csv"
-    profiling_name = "profiling_aware.csv"
+    profiling_name = "profiling_aware.png"
 elif jacobi == "MPI-RMA":
     csv_file = "times_MPI-RMA.csv"
-    profiling_name = "profiling_MPI-RMA.csv"
+    profiling_name = "profiling_MPI-RMA.png"
 
 with open(csv_file, 'r') as file:
     reader = csv.reader(file)
