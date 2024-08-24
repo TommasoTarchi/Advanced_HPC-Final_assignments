@@ -23,6 +23,9 @@
 #include <stdlib.h>
 #include <mpi.h>
 #include "functions.h"
+#ifdef OPENMP
+#include <omp.h>
+#endif
 
 
 #ifndef MAT_SIZE
@@ -180,6 +183,7 @@ int main(int argc, char** argv) {
 #endif
 
         // matmul ('row' and 'col' count rows and columns of the block of C)
+       #pragma omp parallel for collapse(2)	
         for (int row=0; row<N_rows; row++) {
             for (int col=0; col<N_cols; col++) {
                 double acc=0;

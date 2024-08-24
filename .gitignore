@@ -10,7 +10,7 @@ notes.md
 **/*.o
 
 # SLURM reports
-**/report.out
+**/report*.out
 
 # images
 **/*.png
