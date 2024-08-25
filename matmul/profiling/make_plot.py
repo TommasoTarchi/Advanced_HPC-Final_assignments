@@ -12,13 +12,13 @@ csv_file = ""
 profiling_name = ""
 if matmul == "simple":
     csv_file = "times_simple.csv"
-    profiling_name = "profiling_simple.png"
+    profiling_name = "./figures/profiling_simple.png"
 elif matmul == "blas":
     csv_file = "times_blas.csv"
-    profiling_name = "profiling_blas.png"
+    profiling_name = "./figures/profiling_blas.png"
 elif matmul == "cublas":
     csv_file = "times_cublas.csv"
-    profiling_name = "profiling_cublas.png"
+    profiling_name = "./figures/profiling_cublas.png"
 
 with open(csv_file, 'r') as file:
     reader = csv.reader(file)
