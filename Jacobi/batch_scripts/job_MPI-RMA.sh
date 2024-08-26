@@ -3,14 +3,14 @@
 #SBATCH --nodes=16
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=20
-#SBATCH --time=4:00:00
+#SBATCH --time=2:00:00
 #SBATCH --partition=dcgp_usr_prod
 #SBATCH -A ict24_dssc_cpu
 #SBATCH --output=report_MPI-RMA.out
 
 
 # choose matrix size and number of threads
-mat_size=12000
+mat_size=1200
 num_threads=20
 
 
