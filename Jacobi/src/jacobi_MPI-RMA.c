@@ -207,15 +207,6 @@ int main(int argc, char* argv[]){
                   matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
                   matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
                   matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
-
-#ifdef TIME
-        t6 = MPI_Wtime();
-        t_comp += t6 - t5;
-#endif
-
-#ifdef TIME
-        t3 = MPI_Wtime();
-#endif
     
         // wait for RMA operations to complete
         if (my_rank > 0)
@@ -223,15 +214,6 @@ int main(int argc, char* argv[]){
         if (my_rank < n_procs-1)
             MPI_Win_wait(win_down);
 
-#ifdef TIME
-        t4 = MPI_Wtime();
-        t_comm += t4 - t3;
-#endif
-
-#ifdef TIME
-        t5 = MPI_Wtime();
-#endif
-        
         // update first row
        #pragma omp parallel for
         for (j=1; j<N+1; j++)

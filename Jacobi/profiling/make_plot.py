@@ -43,7 +43,7 @@ for i, section_label in enumerate(["initialization", "communication", "computati
         ax.bar(labels, bar, bottom=bottom, label=section_label)
         bottom = [bottom[j] + bar[j] for j in range(len(bar))]
 
-ax.set_xlabel('# nodes')
+ax.set_xlabel('# processes')
 ax.set_ylabel('time')
 #ax.set_title('')
 ax.legend()
