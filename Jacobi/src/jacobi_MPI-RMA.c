@@ -207,12 +207,30 @@ int main(int argc, char* argv[]){
                   matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
                   matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
                   matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+
+#ifdef TIME
+        t6 = MPI_Wtime();
+        t_comp += t6 - t5;
+#endif
+
+#ifdef TIME
+        t3 = MPI_Wtime();
+#endif
     
         // wait for RMA operations to complete
         if (my_rank > 0)
             MPI_Win_wait(win_up);
         if (my_rank < n_procs-1)
             MPI_Win_wait(win_down);
+
+#ifdef TIME
+        t4 = MPI_Wtime();
+        t_comm += t4 - t3;
+#endif
+
+#ifdef TIME
+        t5 = MPI_Wtime();
+#endif
 
         // update first row
        #pragma omp parallel for
@@ -321,8 +339,8 @@ int main(int argc, char* argv[]){
         times = (double*) malloc(3 * sizeof(double));
 
     times[0] = t2 - t1;  // time for initialization
-    times[1] = t_comm;  // time for communications
-    times[2] = t_comp;  // time for computation
+    times[1] = t_comm / (double) iterations;  // time for communications
+    times[2] = t_comp / (double) iterations;  // time for computation
 
     MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
