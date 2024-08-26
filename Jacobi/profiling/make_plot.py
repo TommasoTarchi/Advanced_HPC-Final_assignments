@@ -11,7 +11,7 @@ jacobi = args.mode
 csv_file = ""
 profiling_name = ""
 if jacobi == "openMP":
-    csv_file = "times_openMP.csv"
+    csv_file = "times.csv"
     profiling_name = "./figures/profiling_openMP.png"
 elif jacobi == "openACC":
     csv_file = "times.csv"
