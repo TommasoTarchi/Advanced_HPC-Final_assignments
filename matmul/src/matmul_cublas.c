@@ -300,7 +300,7 @@ int main(int argc, char** argv) {
     MPI_Gather(times, 4, MPI_DOUBLE, times, 4, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
-        char csv_name[] = "profiling/times_simple.csv";
+        char csv_name[] = "profiling/times_cublas.csv";
         save_time(times, csv_name, n_procs);
     }
 
