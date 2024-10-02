@@ -9,7 +9,7 @@
 
 
 # choose matrix size and number of threads
-mat_size=1000
+mat_size=40000
 num_threads=20
 
 
