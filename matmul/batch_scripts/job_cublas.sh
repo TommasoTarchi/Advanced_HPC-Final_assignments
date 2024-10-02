@@ -33,7 +33,7 @@ module load openblas/0.3.24--nvhpc--23.11
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times_cublas.csv
+echo "#n_procs,init,communication,computation,host_device" > profiling/times_cublas.csv
 
 # compile program
 srun -n 1 -N 1 gcc -fopenmp -lm -c src/functions.c -DOPENMP -o src/functions.o

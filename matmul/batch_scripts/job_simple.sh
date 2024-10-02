@@ -28,7 +28,7 @@ module load openmpi/4.1.6--gcc--12.2.0
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times_simple.csv
+echo "#n_procs,init,communication,computation,host_device" > profiling/times_simple.csv
 
 # compile program
 srun -n 1 -N 1 mpicc -fopenmp -lm src/functions.c src/matmul_simple.c -DOPENMP -DTIME -DTEST -DMAT_SIZE=$mat_size -o matmul_simple.x

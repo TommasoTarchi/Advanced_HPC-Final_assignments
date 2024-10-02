@@ -42,11 +42,11 @@ int main(int argc, char** argv) {
 
     // variables for timing
     //
-    // (for clarity, we use t1 and t2 to time initialization,
-    // t3 and t4 to time communications, and t5 and t6 to time
-    // actual computation)
+    // (for clarity, we use t1, t2 to time initialization, t3, t4
+    // to time communications, t5, t6 to time actual computation
+    // and t7, t8 to time host-device communications)
 #ifdef TIME
-    double t1, t2, t3, t4, t_comm = 0, t5, t6, t_comp = 0;
+    double t1, t2, t3, t4, t5, t6, t7, t8, t_comm = 0, t_comp = 0, t_host_dev = 0;
 #endif
 
     // init MPI
@@ -126,14 +126,14 @@ int main(int argc, char** argv) {
     cudaMalloc((void**) &A_dev, N_loc * N * sizeof(double));
 
 #ifdef TIME
-        t5 = MPI_Wtime();
+        t7 = MPI_Wtime();
 #endif
 
     cudaMemcpy(A_dev, A, N_loc * N * sizeof(double), cudaMemcpyHostToDevice);
 
 #ifdef TIME
-        t6 = MPI_Wtime();
-        t_comp += t6 - t5;
+        t8 = MPI_Wtime();
+        t_host_dev += t8 - t7;
 #endif
 
     cudaMalloc((void**) &C_dev, N_loc * N * sizeof(double));
@@ -207,13 +207,22 @@ int main(int argc, char** argv) {
 #endif
 
 #ifdef TIME
-        t5 = MPI_Wtime();
+        t7 = MPI_Wtime();
 #endif
 
         // allocate auxiliary matrices on device and copy gathered data
         double* B_col_dev;
         cudaMalloc((void**) &B_col_dev, N * N_cols * sizeof(double));
         cudaMemcpy(B_col_dev, B_col, N*N_cols*sizeof(double), cudaMemcpyHostToDevice);
+
+#ifdef TIME
+        t8 = MPI_Wtime();
+        t_host_dev += t8 - t7;
+#endif
+
+#ifdef TIME
+        t5 = MPI_Wtime();
+#endif
 
         // matmul
         // (since cublasDgemm() works in col-major order, to avoid transpositions we 
@@ -234,15 +243,15 @@ int main(int argc, char** argv) {
     }
 
 #ifdef TIME
-    t5 = MPI_Wtime();
+    t7 = MPI_Wtime();
 #endif
 
     // copy accumulated computation from device to host
     cudaMemcpy(C, C_dev, N_loc * N * sizeof(double), cudaMemcpyDeviceToHost);
 
 #ifdef TIME
-    t6 = MPI_Wtime();
-    t_comp += t6 - t5;
+    t8 = MPI_Wtime();
+    t_host_dev += t8 - t7;
 #endif
     
     // for testing correctness of matmul
@@ -279,18 +288,19 @@ int main(int argc, char** argv) {
     double* times;
 
     if (my_rank == 0)
-        times = (double*) malloc(n_procs * 3 * sizeof(double));    
+        times = (double*) malloc(n_procs * 4 * sizeof(double));    
     else
-        times = (double*) malloc(3 * sizeof(double));
+        times = (double*) malloc(4 * sizeof(double));
 
     times[0] = t2 - t1;  // time for initialization
     times[1] = t_comm;  // time for communications
     times[2] = t_comp;  // time for computation
+    times[3] = t_host_dev;  // time for host-device communications
     
-    MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(times, 4, MPI_DOUBLE, times, 4, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
-        char csv_name[] = "profiling/times_cublas.csv";
+        char csv_name[] = "profiling/times_simple.csv";
         save_time(times, csv_name, n_procs);
     }
 

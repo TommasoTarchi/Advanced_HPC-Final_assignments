@@ -33,7 +33,7 @@ module load intel-oneapi-mkl
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times_blas.csv
+echo "#n_procs,init,communication,computation,host_device" > profiling/times_blas.csv
 
 # compile program
 #srun -n 1 -N 1 mpicc -fopenmp -lpthread -lm src/functions.c -lopenblas src/matmul_blas.c -DMAT_SIZE=$mat_size -DTIME -DTEST -DOPENMP -o matmul_blas.x
