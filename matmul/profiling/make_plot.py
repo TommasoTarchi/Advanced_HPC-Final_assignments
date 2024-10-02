@@ -5,33 +5,24 @@ import matplotlib.pyplot as plt
 
 # get csv file name
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', type=str, choices=("simple", "blas", "cublas"))
+parser.add_argument('--data_path', type=str)
+parser.add_argument('--plot_path', type=str)
 args = parser.parse_args()
-matmul = args.mode
-csv_file = ""
-profiling_name = ""
-if matmul == "simple":
-    csv_file = "times_simple.csv"
-    profiling_name = "./figures/profiling_simple.png"
-elif matmul == "blas":
-    csv_file = "times_blas.csv"
-    profiling_name = "./figures/profiling_blas.png"
-elif matmul == "cublas":
-    csv_file = "times_cublas.csv"
-    profiling_name = "./figures/profiling_cublas.png"
+data_path = args.data_path
+plot_path = args.plot_path
 
-with open(csv_file, 'r') as file:
+with open(data_path, 'r') as file:
     reader = csv.reader(file)
     data = list(reader)
 
 data = data[1:]  # skip header
 
 labels = [row[0] for row in data]
-values = [[float(row[i]) for i in range(1, 4)] for row in data]
+values = [[float(row[i]) for i in range(1, 5)] for row in data]
 
 fig, ax = plt.subplots()
 bottom = None
-for i, section_label in enumerate(["initialization", "communication", "computation"]):
+for i, section_label in enumerate(["initialization", "communication", "computation", "host_device"]):
     bar = [value[i] for value in values]
     if bottom is None:
         ax.bar(labels, bar, label=section_label)
@@ -42,9 +33,8 @@ for i, section_label in enumerate(["initialization", "communication", "computati
 
 ax.set_xlabel('# processes')
 ax.set_ylabel('time')
-#ax.set_title('')
 ax.legend()
 
 plt.xticks()
 plt.tight_layout()
-plt.savefig(profiling_name)
+plt.savefig(plot_path)
