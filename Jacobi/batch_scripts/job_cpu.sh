@@ -10,7 +10,7 @@
 
 
 # choose matrix size and number of threads
-mat_size=1200
+mat_size=12000
 num_threads=20
 
 
@@ -37,7 +37,7 @@ srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi.c -o ja
 # run program
 for ((nprocs = 1; nprocs <= 32; nprocs *= 2))
 do
-	echo -n "$nprocs," >> profiling/times.csv
+	echo -n "$nprocs," >> profiling/times_cpu.csv
 	mpirun -np "$nprocs" --map-by socket:PE=$num_threads --report-bindings ./jacobi.x $mat_size 10 11 4 
 done
 
