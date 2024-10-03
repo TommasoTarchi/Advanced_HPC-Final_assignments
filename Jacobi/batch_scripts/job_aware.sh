@@ -31,7 +31,7 @@ module load openmpi/4.1.6--nvhpc--23.11
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times_aware.csv
+echo "#n_procs,init,communication,computation,host_dev_once,host_dev_iter" > profiling/times_aware.csv
 
 # compile program
 srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIME src/functions.c src/jacobi_aware.c -o jacobi_aware.x

@@ -29,7 +29,7 @@ module load openmpi/4.1.6--gcc--12.2.0
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times_MPI-RMA.csv
+echo "#n_procs,init,communication,computation,host_dev_once,host_dev_iter" > profiling/times_MPI-RMA.csv
 
 # compile program
 srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi_MPI-RMA.c -o jacobi_MPI-RMA.x

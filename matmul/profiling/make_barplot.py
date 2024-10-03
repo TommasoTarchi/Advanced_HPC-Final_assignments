@@ -11,6 +11,7 @@ args = parser.parse_args()
 data_path = args.data_path
 plot_path = args.plot_path
 
+# get data
 with open(data_path, 'r') as file:
     reader = csv.reader(file)
     data = list(reader)
@@ -20,6 +21,7 @@ data = data[1:]  # skip header
 labels = [row[0] for row in data]
 values = [[float(row[i]) for i in range(1, 5)] for row in data]
 
+# make plot
 fig, ax = plt.subplots()
 bottom = None
 for i, section_label in enumerate(["initialization", "communication", "computation", "host_device"]):
@@ -31,10 +33,10 @@ for i, section_label in enumerate(["initialization", "communication", "computati
         ax.bar(labels, bar, bottom=bottom, label=section_label)
         bottom = [bottom[j] + bar[j] for j in range(len(bar))]
 
+# set labels
 ax.set_xlabel('# processes')
 ax.set_ylabel('time')
 ax.legend()
-
 plt.xticks()
 plt.tight_layout()
 plt.savefig(plot_path)

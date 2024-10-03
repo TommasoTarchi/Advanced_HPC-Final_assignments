@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=jacobi_openMP
+#SBATCH --job-name=jacobi_cpu
 #SBATCH --nodes=16
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=20
 #SBATCH --time=2:00:00
 #SBATCH --partition=dcgp_usr_prod
 #SBATCH -A ict24_dssc_cpu
-#SBATCH --output=report_openMP.out
+#SBATCH --output=report_cpu.out
 
 
 # choose matrix size and number of threads
@@ -29,7 +29,7 @@ module load openmpi/4.1.6--gcc--12.2.0
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times.csv
+echo "#n_procs,init,communication,computation,host_dev_once,host_dev_iter" > profiling/times_cpu.csv
 
 # compile program
 srun -n 1 -N 1 mpicc -fopenmp -DOPENMP -DTIME src/functions.c src/jacobi.c -o jacobi.x

@@ -51,11 +51,12 @@ int main(int argc, char* argv[]){
 
     // variables for timing
     //
-    // (for clarity, we use t1 and t2 to time initialization,
-    // t3 and t4 to time communications, and t5 and t6 to time
-    // actual computation)
+    // (for clarity, we use t1, t2 to time initialization, t3, t4
+    // to time communications, t5, t6 to time actual computation
+    // and t7, t8, t9, t10 to time host-device communications)
 #ifdef TIME
-    double t1, t2, t3, t4, t_comm = 0, t5, t6, t_comp = 0;
+    double t1, t2, t3, t4, t5, t6, t7, t8, t9, t10;
+    double t_comm = 0, t_comp = 0, t_host_dev_once = 0, t_host_dev_iter = 0;
 #endif
 
     // indexes for loops
@@ -114,16 +115,16 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
+#ifdef TIME
+    t1 = MPI_Wtime();
+#endif
+
     // allocate local matrices
     byte_dimension = sizeof(double) * (N_loc + 2) * (N + 2);
     matrix = (double*) malloc(byte_dimension);
     matrix_new = (double*) malloc(byte_dimension);
     memset(matrix, 0, byte_dimension);
     memset(matrix_new, 0, byte_dimension);
-
-#ifdef TIME
-    t1 = MPI_Wtime();
-#endif
 
     // fill initial values
    #pragma omp parallel for collapse(2)
@@ -167,11 +168,20 @@ int main(int argc, char* argv[]){
         destsource_down = MPI_PROC_NULL;
 	    tag_down = -1;  // arbitrary
     }
+
+#ifdef TIME
+    t7 = MPI_Wtime();
+#endif
     
     // copy matrix to device
     size_t total_length = (N_loc+2) * (N+2);
    #pragma acc data copy(matrix[0:total_length]) copyin(matrix_new[0:total_length])
     {
+
+#ifdef TIME
+        t8 = MPI_Wtime();
+        t_host_dev_once += t8 - t7;
+#endif
 
         // start algorithm
         for (it=0; it<iterations; ++it) {
@@ -246,7 +256,17 @@ int main(int argc, char* argv[]){
 #endif
 
         }
+
+#ifdef TIME
+        t7 = MPI_Wtime();
+#endif
+
     }
+
+#ifdef TIME
+    t8 = MPI_Wtime();
+    t_host_dev_once += t8 - t7;
+#endif
     
     // print element for checking
     if (((offset / N) <= row_peek) && (row_peek < (offset / N + N_loc))) {
@@ -292,25 +312,20 @@ int main(int argc, char* argv[]){
     double* times;
 
     if (my_rank == 0)
-        times = (double*) malloc(n_procs * 3 * sizeof(double));    
+        times = (double*) malloc(n_procs * 5 * sizeof(double));    
     else
-        times = (double*) malloc(3 * sizeof(double));
+        times = (double*) malloc(5 * sizeof(double));
 
     times[0] = t2 - t1;  // time for initialization
-    times[1] = t_comm / (double) iterations;  // time for communications
-    times[2] = t_comp / (double) iterations;  // time for computation
-    
-    MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    times[1] = t_comm / (double) iterations;  // time for communications (average)
+    times[2] = t_comp / (double) iterations;  // time for computation (average)
+    times[3] = t_host_dev_once;  // time for initial and final host-device communications
+    times[4] = t_host_dev_iter;  // time for iterated host-device communications
 
+    MPI_Gather(times, 5, MPI_DOUBLE, times, 5, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    // save times
     if (my_rank == 0) {
-        // average communication and computation times over
-        // iterations of the algorithm
-        for (i=0; i<n_procs; i++) {
-            times[1 + 3 * i] /= (double) iterations;
-            times[2 + 3 * i] /= (double) iterations;
-        }
-
-        // save times
         char csv_name[] = "profiling/times_aware.csv";
         save_time(times, csv_name, n_procs);
     }

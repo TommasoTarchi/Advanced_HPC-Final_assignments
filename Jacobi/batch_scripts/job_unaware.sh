@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=jacobi_openACC
+#SBATCH --job-name=jacobi_unaware
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=4
 #SBATCH --gpus-per-node=4
@@ -7,7 +7,7 @@
 #SBATCH --time=4:00:00
 #SBATCH --partition=boost_usr_prod
 #SBATCH -A ict24_dssc_gpu
-#SBATCH --output=report_openACC.out
+#SBATCH --output=report_unaware.out
 
 
 # choose matrix size and number of threads
@@ -31,7 +31,7 @@ module load openmpi/4.1.6--nvhpc--23.11
 cd ../
 
 # create datafile
-echo "#n_procs,init,communication,computation" > profiling/times.csv
+echo "#n_procs,init,communication,computation,host_dev_once,host_dev_iter" > profiling/times_unaware.csv
 
 # compile program
 srun -n 1 -N 1 mpicc -acc=noautopar -Minfo=all -fopenmp -DOPENMP -DOPENACC -DTIME src/functions.c src/jacobi.c -o jacobi.x

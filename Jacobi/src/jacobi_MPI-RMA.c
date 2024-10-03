@@ -44,11 +44,12 @@ int main(int argc, char* argv[]){
 
     // variables for timing
     //
-    // (for clarity, we use t1 and t2 to time initialization,
-    // t3 and t4 to time communications, and t5 and t6 to time
-    // actual computation)
+    // (for clarity, we use t1, t2 to time initialization, t3, t4
+    // to time communications, t5, t6 to time actual computation
+    // and t7, t8, t9, t10 to time host-device communications)
 #ifdef TIME
-    double t1, t2, t3, t4, t_comm = 0, t5, t6, t_comp = 0;
+    double t1, t2, t3, t4, t5, t6, t7, t8, t9, t10;
+    double t_comm = 0, t_comp = 0, t_host_dev_once = 0, t_host_dev_iter = 0;
 #endif
 
     // indexes for loops
@@ -107,6 +108,10 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
+#ifdef TIME
+    t1 = MPI_Wtime();
+#endif
+
     // allocate local matrices
     byte_dimension = sizeof(double) * N_loc * (N + 2);
     matrix = (double*) malloc(byte_dimension);
@@ -119,10 +124,6 @@ int main(int argc, char* argv[]){
     MPI_Win_allocate((N + 2) * sizeof(double), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &boundary_down, &win_down);
     memset(boundary_up, 0, (N + 2) * sizeof(double));
     memset(boundary_down, 0, (N + 2) * sizeof(double));
-
-#ifdef TIME
-    t1 = MPI_Wtime();
-#endif
 
     // fill initial values
    #pragma omp parallel for collapse(2)
@@ -171,23 +172,23 @@ int main(int argc, char* argv[]){
         t3 = MPI_Wtime();
 #endif
 
-    // post exposure epoch
-	if (my_rank > 0)
-        MPI_Win_post(group_up, 0, win_up);
-	if (my_rank < n_procs-1)
-        MPI_Win_post(group_down, 0, win_down);
+        // post exposure epoch
+        if (my_rank > 0)
+            MPI_Win_post(group_up, 0, win_up);
+        if (my_rank < n_procs-1)
+            MPI_Win_post(group_down, 0, win_down);
 
-	if (my_rank > 0) {
-        MPI_Win_start(group_up, 0, win_down);
-        MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, 0, N + 2, MPI_DOUBLE, win_down);
-        MPI_Win_complete(win_down);
-	}
+        if (my_rank > 0) {
+            MPI_Win_start(group_up, 0, win_down);
+            MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, 0, N + 2, MPI_DOUBLE, win_down);
+            MPI_Win_complete(win_down);
+        }
 
-	if (my_rank < n_procs-1) {
-        MPI_Win_start(group_down, 0, win_up);
-        MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win_up);
-        MPI_Win_complete(win_up);
-	}
+        if (my_rank < n_procs-1) {
+            MPI_Win_start(group_down, 0, win_up);
+            MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win_up);
+            MPI_Win_complete(win_up);
+        }
 
 #ifdef TIME
         t4 = MPI_Wtime();
@@ -334,25 +335,20 @@ int main(int argc, char* argv[]){
     double* times;
 
     if (my_rank == 0)
-        times = (double*) malloc(n_procs * 3 * sizeof(double));    
+        times = (double*) malloc(n_procs * 5 * sizeof(double));    
     else
-        times = (double*) malloc(3 * sizeof(double));
+        times = (double*) malloc(5 * sizeof(double));
 
     times[0] = t2 - t1;  // time for initialization
-    times[1] = t_comm / (double) iterations;  // time for communications
-    times[2] = t_comp / (double) iterations;  // time for computation
+    times[1] = t_comm / (double) iterations;  // time for communications (average)
+    times[2] = t_comp / (double) iterations;  // time for computation (average)
+    times[3] = t_host_dev_once;  // time for initial and final host-device communications
+    times[4] = t_host_dev_iter;  // time for iterated host-device communications
 
-    MPI_Gather(times, 3, MPI_DOUBLE, times, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(times, 5, MPI_DOUBLE, times, 5, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+    // save times
     if (my_rank == 0) {
-        // average communication and computation times over
-        // iterations of the algorithm
-        for (i=0; i<n_procs; i++) {
-            times[1 + 3 * i] /= (double) iterations;
-            times[2 + 3 * i] /= (double) iterations;
-        }
-
-        // save times
         char csv_name[] = "profiling/times_MPI-RMA.csv";
         save_time(times, csv_name, n_procs);
     }

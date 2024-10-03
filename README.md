@@ -73,10 +73,8 @@ To reproduce the scaling studies you can follow these simple steps:
    $ cd ../profiling
    ````
 
-7. Build plots using `make_plot.py`, setting `--mode` option to the scaling you ran:
+7. Build scaling barplots using `make_barplot.py` and speedup plots using `make_speedup_plot.py`, setting
+   `--data_path` and `--plot_path`:
    ````
-   $ python3 make_plot.py --mode <mode_option>
+   $ python3 make_barplot.py/make_speedup_plot.py --data_path <path_to_csv_file> --plot_path <path_to_file_for_saving_plot>
    ````
-   Available mode options are:
-   - for Jacobi: `openMP`, `openACC`, `aware`, `MPI-RMA`;
-   - for matmul: `simple`, `blas`, `cublas`.
