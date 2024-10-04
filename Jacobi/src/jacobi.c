@@ -302,7 +302,7 @@ int main(int argc, char* argv[]){
 
         // print process 0's data
         save_gnuplot_parallel(matrix, N_loc, N, my_rank, offset/N, n_procs);
-        
+
         size_t col_offset_recv = N_loc;
         for (int count=1; count<n_procs; count++) {
 

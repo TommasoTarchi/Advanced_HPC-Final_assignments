@@ -40,8 +40,8 @@ This repo contains:
     - `matmul_blas.c`: parallel MPI C code for matmul using **BLAS**
     - `matmul_cublas.c`: parallel MPI CUDA code for matmul using **cuBLAS**
   - `test_matmul/`: directory containing dumped matrices and code to test matmul correctness
-- `Report.pdf`: brief report about the assignment with more detailed description of algorithm and
-  its implementation
+- `docs/`: directory containing report (details about algorithms and implementation) and presentation
+  (recap of algorithms and implementation, and final results)
 
 
 ## How to reproduce data on Leonardo
@@ -73,8 +73,7 @@ To reproduce the scaling studies you can follow these simple steps:
    $ cd ../profiling
    ````
 
-7. Build scaling barplots using `make_barplot.py` and speedup plots using `make_speedup_plot.py`, setting
-   `--data_path` and `--plot_path`:
+7. Build various plots using the scripts in there:
    ````
-   $ python3 make_barplot.py/make_speedup_plot.py --data_path <path_to_csv_file> --plot_path <path_to_file_for_saving_plot>
+   $ python3 <script_name>.py --data_path <path_to_csv_file> --plot_path <path_to_file_for_saving_plot>
    ````

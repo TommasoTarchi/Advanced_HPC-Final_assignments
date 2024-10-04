@@ -243,12 +243,20 @@ int main(int argc, char* argv[]){
             for (i=1; i<N_loc+1; i++)
                 for (j=1; j<N+1; j++)
                     matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j];
-#else
+           #pragma acc serial present(matrix[0:total_length], matrix_new[0:total_length]) 
+            {
+                double* tmp;
+                tmp = matrix;
+                matrix = matrix_new;
+                matrix_new = tmp;
+            }
+#endif
+//#else
             double* tmp;
             tmp = matrix;
             matrix = matrix_new;
             matrix_new = tmp;
-#endif
+//#endif
 
 #ifdef TIME
             t6 = MPI_Wtime();
