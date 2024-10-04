@@ -20,18 +20,18 @@ with open(data_path, 'r') as file:
 header = data[0]
 data = data[1:]
 
-# compute the speedup relative to computation
+# compute the speedup
 n_procs = [int(row[0]) for row in data]
-computation_times = [float(row[3]) for row in data]
+times = [float(row[3]) for row in data]
 
-sequential_time = computation_times[0]
-speedup = [sequential_time / comp_time for comp_time in computation_times]
+sequential_time = times[0]
+speedup = [sequential_time / time for time in times]
 
 ideal_speedup = n_procs
 
 # make plot
 fig, ax = plt.subplots()
-ax.plot(n_procs, speedup, marker='o', linestyle='-', color='b', label='Computation Speedup')
+ax.plot(n_procs, speedup, marker='o', linestyle='-', color='b', label='Speedup')
 
 ax.plot(n_procs, ideal_speedup, linestyle='--', color='r', label='Ideal Speedup')
 ax.fill_between(n_procs, 0, ideal_speedup, color='red', alpha=0.1)

@@ -16,22 +16,25 @@ with open(data_path, 'r') as file:
     reader = csv.reader(file)
     data = list(reader)
 
-data = data[1:]  # skip header
+# skip header row
+header = data[0]
+data = data[1:]
 
-labels = [row[0] for row in data]
-values = [[float(row[i]) for i in range(1, 4)] for row in data]
+# compute the speedup
+n_procs = [int(row[0]) for row in data]
+times = [float(row[1]) + float(row[2]) + float(row[3]) + float(row[4]) + float(row[5]) for row in data]
+
+sequential_time = times[0]
+speedup = [sequential_time / time for time in times]
+
+ideal_speedup = n_procs
 
 # make plot
 fig, ax = plt.subplots()
-bottom = None
-for i, section_label in enumerate(["initialization", "communication", "computation"]):#, "host_device_once", "host_device_iterations"]):
-    bar = [value[i] for value in values]
-    if bottom is None:
-        ax.bar(labels, bar, label=section_label)
-        bottom = bar
-    else:
-        ax.bar(labels, bar, bottom=bottom, label=section_label)
-        bottom = [bottom[j] + bar[j] for j in range(len(bar))]
+ax.plot(n_procs, speedup, marker='o', linestyle='-', color='b', label='Speedup')
+
+ax.plot(n_procs, ideal_speedup, linestyle='--', color='r', label='Ideal Speedup')
+ax.fill_between(n_procs, 0, ideal_speedup, color='red', alpha=0.1)
 
 # set labels
 ax.set_xlabel('# processes')
