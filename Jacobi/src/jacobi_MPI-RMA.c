@@ -135,6 +135,7 @@ int main(int argc, char* argv[]){
     // set up borders
     double increment = 100.0 / (N + 1);
     double increment_start = increment * (offset / N);
+   #pragma omp parallel for
     for (i=0; i<N_loc; ++i) {
         
 	    matrix[i * (N + 2)] = increment_start + (i + 1) * increment;
@@ -142,6 +143,7 @@ int main(int argc, char* argv[]){
     }
     if (my_rank == n_procs-1) {
         
+       #pragma omp parallel for
         for (i=1; i<=N+1; i++) {
             boundary_down[N + 1 - i] = i * increment;
         }
