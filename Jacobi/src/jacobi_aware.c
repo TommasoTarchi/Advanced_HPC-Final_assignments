@@ -174,8 +174,11 @@ int main(int argc, char* argv[]){
 #endif
     
     // copy matrix to device
+    //
+    // NOTICE: we cannot use copyin() for matrix_new beacuse if we did the algorithm
+    // would not work for odd values of 'iterations', because of pointer swap
     size_t total_length = (N_loc+2) * (N+2);
-   #pragma acc data copy(matrix[0:total_length]) copyin(matrix_new[0:total_length])
+   #pragma acc data copy(matrix[0:total_length], matrix_new[0:total_length])
     {
 
 #ifdef TIME
@@ -212,19 +215,13 @@ int main(int argc, char* argv[]){
             t5 = MPI_Wtime();
 #endif
 
+	    
+            // update system's state on device or host
 #ifdef OPENACC
-            // update system's state on device
            #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) collapse(2)
-            for (i=1; i<N_loc+1; ++i)
-                for (j=1; j<N+1; ++j)
-                    matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
-                    ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
-                      matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
-                      matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
 #else
-            // update system's state on host
            #pragma omp parallel for collapse(2)
+#endif
             for (i=1; i<N_loc+1; ++i)
                 for (j=1; j<N+1; ++j)
                     matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
@@ -232,17 +229,9 @@ int main(int argc, char* argv[]){
                       matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
                       matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
                       matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
-#endif
 
-            // switch pointers (if not using OpenACC) or copy data
-            // between matrices (if using OpenACC)
-            //
-            // NOTICE: in OpenACC pointer swapping is not available
+            // switch pointers to update main grid
 #ifdef OPENACC
-           #pragma acc parallel loop gang present(matrix[0:total_length], matrix_new[0:total_length]) independent collapse(2)
-            for (i=1; i<N_loc+1; i++)
-                for (j=1; j<N+1; j++)
-                    matrix[i*(N+2)+j] = matrix_new[i*(N+2)+j];
            #pragma acc serial present(matrix[0:total_length], matrix_new[0:total_length]) 
             {
                 double* tmp;
@@ -251,12 +240,10 @@ int main(int argc, char* argv[]){
                 matrix_new = tmp;
             }
 #endif
-//#else
             double* tmp;
             tmp = matrix;
             matrix = matrix_new;
             matrix_new = tmp;
-//#endif
 
 #ifdef TIME
             t6 = MPI_Wtime();

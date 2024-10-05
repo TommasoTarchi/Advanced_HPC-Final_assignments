@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=4
 #SBATCH --gpus-per-node=4
 #SBATCH --cpus-per-task=7
-#SBATCH --time=2:00:00
+#SBATCH --time=4:00:00
 #SBATCH --partition=boost_usr_prod
 #SBATCH -A ict24_dssc_gpu
 #SBATCH --output=report_aware.out
