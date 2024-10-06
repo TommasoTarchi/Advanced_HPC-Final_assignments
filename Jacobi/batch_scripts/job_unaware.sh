@@ -11,7 +11,7 @@
 
 
 # choose matrix size and number of threads
-mat_size=12000
+mat_size=1200
 num_threads=7
 
 
