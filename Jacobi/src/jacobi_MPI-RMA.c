@@ -345,7 +345,7 @@ int main(int argc, char* argv[]){
     times[1] = t_comm / (double) iterations;  // time for communications (average)
     times[2] = t_comp / (double) iterations;  // time for computation (average)
     times[3] = t_host_dev_once;  // time for initial and final host-device communications
-    times[4] = t_host_dev_iter;  // time for iterated host-device communications
+    times[4] = t_host_dev_iter / (double) iterations;  // time for iterated host-device communications
 
     MPI_Gather(times, 5, MPI_DOUBLE, times, 5, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
