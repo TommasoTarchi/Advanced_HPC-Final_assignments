@@ -359,7 +359,7 @@ int main(int argc, char **argv) {
 
     // save times
     if (my_rank == 0) {
-        char csv_name[] = "profiling/times_MPI-RMA.csv";
+        char csv_name[] = "profiling/times_MPI-nonblocking.csv";
         save_time(times, csv_name, n_procs);
     }
 
