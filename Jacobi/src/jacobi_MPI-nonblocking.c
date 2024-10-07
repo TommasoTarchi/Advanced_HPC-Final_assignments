@@ -26,6 +26,7 @@
 #include <omp.h>
 #endif
 
+
 int main(int argc, char **argv) {
 
     int my_rank, n_procs;
@@ -34,11 +35,10 @@ int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Status status;
 
     // init MPI requests
-    MPI_Request req[2];
-    MPI_Status status[2];
+    MPI_Request req[4];
+    MPI_Status status[4];
 
     // variables for timing
     //
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
     boundary_down = (double*) malloc((N + 2) * sizeof(double));
     memset(boundary_up, 0, (N + 2) * sizeof(double));
     memset(boundary_down, 0, (N + 2) * sizeof(double));
-
+	
     // fill initial values
    #pragma omp parallel for collapse(2)
     for (i=0; i<N_loc; ++i)
@@ -153,32 +153,8 @@ int main(int argc, char **argv) {
 
     // define variables for send-receive (using MPI_PROC_NULL 
     // as dummy destination-source)
-    int destsource_up = my_rank - 1;
     int tag_up = my_rank - 1;
-    int destsource_down = my_rank + 1;
     int tag_down = my_rank + 1;
-    if (my_rank == 0) {
-        destsource_up = MPI_PROC_NULL;
-	    tag_up = -1;  // arbitrary
-    }
-    if (my_rank == n_procs-1) {
-        destsource_down = MPI_PROC_NULL;
-	    tag_down = -1;  // arbitrary
-    }
-
-    // create smaller communicators for more non blocking communications
-    MPI_Group world_group, group_up, group_down;
-    MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-    if (my_rank > 0) {
-        int ranks_up[2] = {my_rank - 1, my_rank};
-        MPI_Group_incl(world_group, 2, ranks_up, &group_up);
-        MPI_Comm_create(MPI_COMM_WORLD, group_up, &comm_up);
-    }
-    if (my_rank < n_procs - 1) {
-        int ranks_down[2] = {my_rank, my_rank + 1};
-        MPI_Group_incl(world_group, 2, ranks_down, &group_down);
-        MPI_Comm_create(MPI_COMM_WORLD, group_down, &comm_down);
-    }
 
     // start algorithm
     for (it = 0; it < iterations; ++it) {
@@ -189,10 +165,22 @@ int main(int argc, char **argv) {
 
         // send and receive bordering data (backward first and 
         // forward then)
-        if (my_rank > 0)
-            MPI_Isendrecv(matrix, N + 2, MPI_DOUBLE, 0, my_rank, boundary_up, N + 2, MPI_DOUBLE, 1, destsource_down, comm_up, &req[0]);
-        if (my_rank < n_procs - 1)
-            MPI_Isendrecv(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, 1, my_rank, boundary_down, N + 2, MPI_DOUBLE, 0, tag_up, comm_down, &req[1]);
+	if (my_rank > 0) {
+    	    MPI_Irecv(boundary_up, N + 2, MPI_DOUBLE, tag_up, tag_up, MPI_COMM_WORLD, &req[0]);
+    	    MPI_Isend(matrix, N + 2, MPI_DOUBLE, tag_up, my_rank, MPI_COMM_WORLD, &req[1]);
+        }
+        if (my_rank < n_procs - 1) {
+            MPI_Irecv(boundary_down, N + 2, MPI_DOUBLE, tag_down, tag_down, MPI_COMM_WORLD, &req[2]);
+            MPI_Isend(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, tag_down, my_rank, MPI_COMM_WORLD, &req[3]);
+        }
+
+        // wait for non-blocking send to complete
+        if (my_rank > 0) {
+            MPI_Wait(&req[1], &status[1]);
+        }
+        if (my_rank < n_procs - 1) {
+            MPI_Wait(&req[3], &status[3]);
+        }
 
 #ifdef TIME
         t4 = MPI_Wtime();
@@ -222,12 +210,12 @@ int main(int argc, char **argv) {
         t3 = MPI_Wtime();
 #endif
 
-        // wait for non-blocking operations to complete
+        // wait for non-blocking recv to complete
         if (my_rank > 0) {
             MPI_Wait(&req[0], &status[0]);
         }
         if (my_rank < n_procs - 1) {
-            MPI_Wait(&req[1], &status[1]);
+            MPI_Wait(&req[2], &status[2]);
         }
 
 #ifdef TIME
@@ -297,7 +285,7 @@ int main(int argc, char **argv) {
             N_loc_recv = N / n_procs + (count < N_rest);
 
             // receive central processes' data and print them
-            MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status);
+            MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, count, count, MPI_COMM_WORLD, &status[0]);
             save_gnuplot_parallel_no_bounds(matrix, boundary_up, boundary_down, N_loc_recv, N, count, col_offset_recv, n_procs);
 
             col_offset_recv += N_loc_recv;
@@ -307,8 +295,8 @@ int main(int argc, char **argv) {
 
         // receive last process's data and print them
         if (n_procs > 1) {
-            MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
-            MPI_Recv(boundary_down, N + 2, MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status);
+            MPI_Recv(matrix, N_loc_recv * (N+2), MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status[0]);
+            MPI_Recv(boundary_down, N + 2, MPI_DOUBLE, n_procs-1, n_procs-1, MPI_COMM_WORLD, &status[0]);
             save_gnuplot_parallel_no_bounds(matrix, boundary_up, boundary_down, N_loc_recv, N, n_procs-1, col_offset_recv, n_procs);
         }
     
@@ -330,15 +318,15 @@ int main(int argc, char **argv) {
     free(boundary_down);
 
     // free communicators and groups
-    if (comm_up != MPI_COMM_NULL) {
-        MPI_Comm_free(&comm_up);
-        MPI_Group_free(&group_up);
-    }
-    if (comm_down != MPI_COMM_NULL) {
-        MPI_Comm_free(&comm_down);
-        MPI_Group_free(&group_down);
-    }
-    MPI_Group_free(&world_group);
+    //if (comm_up != MPI_COMM_NULL) {
+   //     MPI_Comm_free(&comm_up);
+     //   MPI_Group_free(&group_up);
+    //}
+  //  if (comm_down != MPI_COMM_NULL) {
+    //    MPI_Comm_free(&comm_down);
+      //  MPI_Group_free(&group_down);
+   // }
+    //MPI_Group_free(&world_group);
 
     // gather measured times and print them
 #ifdef TIME
