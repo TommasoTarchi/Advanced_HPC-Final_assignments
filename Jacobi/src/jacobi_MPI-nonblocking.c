@@ -11,8 +11,7 @@
  *
  * base serial code is taken from prof. Ivan Girotto at ICTP
  *
- * MPI communications are performed using the Remote Memory
- * Access paradigm
+ * MPI communications are performed using non blocking routines
  *
  * */
 
@@ -27,8 +26,7 @@
 #include <omp.h>
 #endif
 
-
-int main(int argc, char* argv[]){
+int main(int argc, char **argv) {
 
     int my_rank, n_procs;
 
@@ -38,9 +36,9 @@ int main(int argc, char* argv[]){
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Status status;
 
-    // init MPI window
-    MPI_Win win_up, win_down;
-    MPI_Request request;
+    // init MPI requests
+    MPI_Request req[2];
+    MPI_Status status[2];
 
     // variables for timing
     //
@@ -119,9 +117,9 @@ int main(int argc, char* argv[]){
     memset(matrix, 0, byte_dimension);
     memset(matrix_new, 0, byte_dimension);
 
-    // allocate boundaries ('boundaries' is allocated and assigned to a window)
-    MPI_Win_allocate((N + 2) * sizeof(double), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &boundary_up, &win_up);
-    MPI_Win_allocate((N + 2) * sizeof(double), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &boundary_down, &win_down);
+    // allocate boundaries
+    boundary_up = (double*) malloc((N + 2) * sizeof(double));
+    boundary_down = (double*) malloc((N + 2) * sizeof(double));
     memset(boundary_up, 0, (N + 2) * sizeof(double));
     memset(boundary_down, 0, (N + 2) * sizeof(double));
 
@@ -153,44 +151,48 @@ int main(int argc, char* argv[]){
     t2 = MPI_Wtime();
 #endif
 
-    // define destinations
-    int dest_up = my_rank - 1;
-    int dest_down = my_rank + 1;
+    // define variables for send-receive (using MPI_PROC_NULL 
+    // as dummy destination-source)
+    int destsource_up = my_rank - 1;
+    int tag_up = my_rank - 1;
+    int destsource_down = my_rank + 1;
+    int tag_down = my_rank + 1;
+    if (my_rank == 0) {
+        destsource_up = MPI_PROC_NULL;
+	    tag_up = -1;  // arbitrary
+    }
+    if (my_rank == n_procs-1) {
+        destsource_down = MPI_PROC_NULL;
+	    tag_down = -1;  // arbitrary
+    }
 
-    // create groups for RMA communications
-    //
-    // (groups only contain processes exposing/accessing the windows)
+    // create smaller communicators for more non blocking communications
     MPI_Group world_group, group_up, group_down;
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-    if (my_rank > 0)
-        MPI_Group_incl(world_group, 1, &dest_up, &group_up);
-    if (my_rank < n_procs-1)
-        MPI_Group_incl(world_group, 1, &dest_down, &group_down);
+    if (my_rank > 0) {
+        int ranks_up[2] = {my_rank - 1, my_rank};
+        MPI_Group_incl(world_group, 2, ranks_up, &group_up);
+        MPI_Comm_create(MPI_COMM_WORLD, group_up, &comm_up);
+    }
+    if (my_rank < n_procs - 1) {
+        int ranks_down[2] = {my_rank, my_rank + 1};
+        MPI_Group_incl(world_group, 2, ranks_down, &group_down);
+        MPI_Comm_create(MPI_COMM_WORLD, group_down, &comm_down);
+    }
 
     // start algorithm
-    for (it=0; it<iterations; ++it) {
+    for (it = 0; it < iterations; ++it) {
 
 #ifdef TIME
         t3 = MPI_Wtime();
 #endif
 
-        // post exposure epoch
+        // send and receive bordering data (backward first and 
+        // forward then)
         if (my_rank > 0)
-            MPI_Win_post(group_up, 0, win_up);
-        if (my_rank < n_procs-1)
-            MPI_Win_post(group_down, 0, win_down);
-
-        if (my_rank > 0) {
-            MPI_Win_start(group_up, 0, win_down);
-            MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, 0, N + 2, MPI_DOUBLE, win_down);
-            MPI_Win_complete(win_down);
-        }
-
-        if (my_rank < n_procs-1) {
-            MPI_Win_start(group_down, 0, win_up);
-            MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win_up);
-            MPI_Win_complete(win_up);
-        }
+            MPI_Isendrecv(matrix, N + 2, MPI_DOUBLE, 0, my_rank, boundary_up, N + 2, MPI_DOUBLE, 1, destsource_down, comm_up, &req[0]);
+        if (my_rank < n_procs - 1)
+            MPI_Isendrecv(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, 1, my_rank, boundary_down, N + 2, MPI_DOUBLE, 0, tag_up, comm_down, &req[1]);
 
 #ifdef TIME
         t4 = MPI_Wtime();
@@ -201,15 +203,15 @@ int main(int argc, char* argv[]){
         t5 = MPI_Wtime();
 #endif
 
-        // update interal cells
-       #pragma omp parallel for collapse(2)
-        for (i=1; i<N_loc-1; ++i)
-            for (j=1; j<N+1; ++j)
-                matrix_new[ ( i * ( N + 2 ) ) + j ] = ( 0.25 ) * 
-                ( matrix[ ( ( i - 1 ) * ( N + 2 ) ) + j ] + 
-                  matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
-                  matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
-                  matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
+        // update internal cells
+        #pragma omp parallel for collapse(2)
+        for (i = 1; i < N_loc - 1; ++i)
+            for (j = 1; j < N + 1; ++j)
+                matrix_new[(i * (N + 2)) + j] = (0.25) * 
+                    (matrix[((i - 1) * (N + 2)) + j] + 
+                     matrix[(i * (N + 2)) + (j + 1)] +     
+                     matrix[((i + 1) * (N + 2)) + j] + 
+                     matrix[(i * (N + 2)) + (j - 1)]);
 
 #ifdef TIME
         t6 = MPI_Wtime();
@@ -219,12 +221,14 @@ int main(int argc, char* argv[]){
 #ifdef TIME
         t3 = MPI_Wtime();
 #endif
-    
-        // wait for RMA operations to complete
-        if (my_rank > 0)
-            MPI_Win_wait(win_up);
-        if (my_rank < n_procs-1)
-            MPI_Win_wait(win_down);
+
+        // wait for non-blocking operations to complete
+        if (my_rank > 0) {
+            MPI_Wait(&req[0], &status[0]);
+        }
+        if (my_rank < n_procs - 1) {
+            MPI_Wait(&req[1], &status[1]);
+        }
 
 #ifdef TIME
         t4 = MPI_Wtime();
@@ -236,25 +240,25 @@ int main(int argc, char* argv[]){
 #endif
 
         // update first row
-       #pragma omp parallel for
-        for (j=1; j<N+1; j++)
-            matrix_new[ j ] = ( 0.25 ) *
-            ( boundary_up[ j ] +
-              matrix[ j - 1 ] +
-              matrix[ j + 1 ] +
-              matrix[ N + 2 + j ] );
+        #pragma omp parallel for
+        for (j = 1; j < N + 1; j++)
+            matrix_new[j] = (0.25) *
+                (boundary_up[j] +
+                 matrix[j - 1] +
+                 matrix[j + 1] +
+                 matrix[N + 2 + j]);
 
         // update last row
-       #pragma omp parallel for
-        for (j=1; j<N+1; j++)
-            matrix_new[ ( N_loc - 1 ) * ( N + 2) + j] = ( 0.25 ) *
-            ( matrix[ ( N_loc - 2 ) * ( N + 2 ) + j ] +
-              matrix[ ( N_loc - 1 ) * ( N + 2) + ( j - 1 ) ] +
-              matrix[ ( N_loc - 1 ) * ( N + 2) + ( j + 1 ) ] +
-              boundary_down[ j ] );
+        #pragma omp parallel for
+        for (j = 1; j < N + 1; j++)
+            matrix_new[(N_loc - 1) * (N + 2) + j] = (0.25) *
+                (matrix[(N_loc - 2) * (N + 2) + j] +
+                 matrix[(N_loc - 1) * (N + 2) + (j - 1)] +
+                 matrix[(N_loc - 1) * (N + 2) + (j + 1)] +
+                 boundary_down[j]);
 
         // switch pointers to matrices
-        double *tmp, *tmp_bound_up, *tmp_bound_down;
+        double *tmp;
         tmp = matrix;
         matrix = matrix_new;
         matrix_new = tmp;
@@ -322,15 +326,18 @@ int main(int argc, char* argv[]){
 
     free(matrix);
     free(matrix_new);
+    free(boundary_up);
+    free(boundary_down);
 
-    MPI_Win_free(&win_up);
-    MPI_Win_free(&win_down);
-
-    // free groups
-    if (my_rank > 0)
+    // free communicators and groups
+    if (comm_up != MPI_COMM_NULL) {
+        MPI_Comm_free(&comm_up);
         MPI_Group_free(&group_up);
-    if (my_rank < n_procs-1)
+    }
+    if (comm_down != MPI_COMM_NULL) {
+        MPI_Comm_free(&comm_down);
         MPI_Group_free(&group_down);
+    }
     MPI_Group_free(&world_group);
 
     // gather measured times and print them

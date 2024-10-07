@@ -19,13 +19,14 @@ with open(data_path, 'r') as file:
 data = data[1:]  # skip header
 
 labels = [row[0] for row in data]
-values = [[float(row[i]) for i in (2, 3, 5)] for row in data]
+values = [[float(row[i]) for i in range(1, 6)] for row in data]
+#values = [[float(row[i]) for i in (2, 3, 5)] for row in data]
 
 # make plot
 fig, ax = plt.subplots()
 bottom = None
-#for i, section_label in enumerate(["initialization", "communication", "computation", "host_device_once", "host_device_iterations"]):
-for i, section_label in enumerate(["communication", "computation", "host_device_iterations"]):
+for i, section_label in enumerate(["initialization", "communication", "computation", "host_device_once", "host_device_iterations"]):
+#for i, section_label in enumerate(["communication", "computation", "host_device_iterations"]):
     bar = [value[i] for value in values]
     if bottom is None:
         ax.bar(labels, bar, label=section_label)
