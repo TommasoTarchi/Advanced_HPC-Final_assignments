@@ -1,0 +1,4 @@
+#n_procs,init,communication,computation,host_dev_once,host_dev_iter
+1,1.749992,0.000001,0.019003,4.995458,0.000000
+2,1.025732,0.025911,0.009560,2.695186,0.000000
+4,
