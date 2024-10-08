@@ -126,9 +126,8 @@ int main(int argc, char **argv) {
     // fill initial values
    #pragma omp parallel for collapse(2)
     for (i=0; i<N_loc; ++i)
-        for (j=1; j<=N; ++j) {
+        for (j=1; j<=N; ++j)
             matrix[(i * (N + 2)) + j] = 0.5;
-        }
 
     // set up borders
     double increment = 100.0 / (N + 1);
@@ -142,9 +141,8 @@ int main(int argc, char **argv) {
     if (my_rank == n_procs-1) {
         
        #pragma omp parallel for
-        for (i=1; i<=N+1; i++) {
+        for (i=1; i<=N+1; i++)
             boundary_down[N + 1 - i] = i * increment;
-        }
     }
 
 #ifdef TIME
@@ -165,7 +163,7 @@ int main(int argc, char **argv) {
 
         // send and receive bordering data (backward first and 
         // forward then)
-	if (my_rank > 0) {
+        if (my_rank > 0) {
     	    MPI_Irecv(boundary_up, N + 2, MPI_DOUBLE, tag_up, tag_up, MPI_COMM_WORLD, &req[0]);
     	    MPI_Isend(matrix, N + 2, MPI_DOUBLE, tag_up, my_rank, MPI_COMM_WORLD, &req[1]);
         }
@@ -175,12 +173,10 @@ int main(int argc, char **argv) {
         }
 
         // wait for non-blocking send to complete
-        if (my_rank > 0) {
+        if (my_rank > 0)
             MPI_Wait(&req[1], &status[1]);
-        }
-        if (my_rank < n_procs - 1) {
+        if (my_rank < n_procs - 1)
             MPI_Wait(&req[3], &status[3]);
-        }
 
 #ifdef TIME
         t4 = MPI_Wtime();
@@ -211,12 +207,10 @@ int main(int argc, char **argv) {
 #endif
 
         // wait for non-blocking recv to complete
-        if (my_rank > 0) {
+        if (my_rank > 0)
             MPI_Wait(&req[0], &status[0]);
-        }
-        if (my_rank < n_procs - 1) {
+        if (my_rank < n_procs - 1)
             MPI_Wait(&req[2], &status[2]);
-        }
 
 #ifdef TIME
         t4 = MPI_Wtime();

@@ -157,16 +157,6 @@ int main(int argc, char* argv[]){
     int dest_up = my_rank - 1;
     int dest_down = my_rank + 1;
 
-    // create groups for RMA communications
-    //
-    // (groups only contain processes exposing/accessing the windows)
-    MPI_Group world_group, group_up, group_down;
-    MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-    if (my_rank > 0)
-        MPI_Group_incl(world_group, 1, &dest_up, &group_up);
-    if (my_rank < n_procs-1)
-        MPI_Group_incl(world_group, 1, &dest_down, &group_down);
-
     // start algorithm
     for (it=0; it<iterations; ++it) {
 
@@ -174,22 +164,16 @@ int main(int argc, char* argv[]){
         t3 = MPI_Wtime();
 #endif
 
-        // post exposure epoch
-        if (my_rank > 0)
-            MPI_Win_post(group_up, 0, win_up);
-        if (my_rank < n_procs-1)
-            MPI_Win_post(group_down, 0, win_down);
-
         // perform RMA operations
         if (my_rank > 0) {
-            MPI_Win_start(group_up, 0, win_down);
+            MPI_Win_lock(MPI_LOCK_EXCLUSIVE, dest_up, 0, win_down);
             MPI_Put(matrix, N + 2, MPI_DOUBLE, dest_up, 0, N + 2, MPI_DOUBLE, win_down);
-            MPI_Win_complete(win_down);
+            MPI_Win_unlock(dest_up, win_down);
         }
         if (my_rank < n_procs-1) {
-            MPI_Win_start(group_down, 0, win_up);
+            MPI_Win_lock(MPI_LOCK_EXCLUSIVE, dest_down, 0, win_up);
             MPI_Put(&matrix[(N_loc - 1) * (N + 2)], N + 2, MPI_DOUBLE, dest_down, 0, N + 2, MPI_DOUBLE, win_up);
-            MPI_Win_complete(win_up);
+            MPI_Win_unlock(dest_down, win_up);
         }
 
 #ifdef TIME
@@ -210,30 +194,6 @@ int main(int argc, char* argv[]){
                   matrix[ ( i * ( N + 2 ) ) + ( j + 1 ) ] + 	  
                   matrix[ ( ( i + 1 ) * ( N + 2 ) ) + j ] + 
                   matrix[ ( i * ( N + 2 ) ) + ( j - 1 ) ] ); 
-
-#ifdef TIME
-        t6 = MPI_Wtime();
-        t_comp += t6 - t5;
-#endif
-
-#ifdef TIME
-        t3 = MPI_Wtime();
-#endif
-    
-        // wait for RMA operations to complete
-        if (my_rank > 0)
-            MPI_Win_wait(win_up);
-        if (my_rank < n_procs-1)
-            MPI_Win_wait(win_down);
-
-#ifdef TIME
-        t4 = MPI_Wtime();
-        t_comm += t4 - t3;
-#endif
-
-#ifdef TIME
-        t5 = MPI_Wtime();
-#endif
 
         // update first row
        #pragma omp parallel for
@@ -326,13 +286,6 @@ int main(int argc, char* argv[]){
     MPI_Win_free(&win_up);
     MPI_Win_free(&win_down);
 
-    // free groups
-    if (my_rank > 0)
-        MPI_Group_free(&group_up);
-    if (my_rank < n_procs-1)
-        MPI_Group_free(&group_down);
-    MPI_Group_free(&world_group);
-
     // gather measured times and print them
 #ifdef TIME
     double* times;
@@ -352,7 +305,7 @@ int main(int argc, char* argv[]){
 
     // save times
     if (my_rank == 0) {
-        char csv_name[] = "profiling/times_MPI-RMA.csv";
+        char csv_name[] = "profiling/times_MPI-RMA_locks.csv";
         save_time(times, csv_name, n_procs);
     }
 

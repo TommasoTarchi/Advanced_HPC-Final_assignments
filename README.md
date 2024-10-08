@@ -28,6 +28,7 @@ This repo contains:
     - `jacobi.c`: parallel MPI C code for Jacobi accelerated with OpenACC (OpenMP is used to
       further parallelize system initialization on host)
     - `jacobi_aware.c`: same as above but with CUDA-aware MPI communications
+    - `jacobi_MPI-nonblocking.c`: parallel C code for Jacobi with openMP and non-blocking MPI
     - `jacobi_MPI-RMA.c`: parallel C code for Jacobi with openMP and *Remote Memory Access* MPI
 - `matmul/`:
   - `batch_scripts/`: directory containing batch files to run the scaling on Leonardo
