@@ -13,6 +13,8 @@ All scripts were run on *Leonardo*, cluster hosted at *CINECA* (Bologna, Italy).
 
 Details on my solution (both algorithm and implmentation) can be found in the [report](Report.pdf).
 
+**WARNING**: times taken for CUDA computation are wrong, as host-device asynchrony was not taken into account.
+
 
 ## What you will find in this repository
 
